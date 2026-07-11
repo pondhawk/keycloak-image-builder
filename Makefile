@@ -5,7 +5,7 @@ LIBDIR  = $(PREFIX)/lib/kcadmin
 SYSTEMD_DIR ?= /usr/lib/systemd/system
 
 VERSION := $(shell cat VERSION)
-SH_FILES := scripts/kcadmin $(wildcard lib/*.sh) $(wildcard scripts/subcommands/*.sh)
+SH_FILES := scripts/kcadmin $(wildcard lib/*.sh) $(wildcard scripts/subcommands/*.sh) $(wildcard boot/*.sh)
 
 .PHONY: help
 help: ## Show this help
@@ -31,6 +31,7 @@ install: ## Install kcadmin onto this host (golden instance)
 		$(DESTDIR)$(LIBDIR)/templates $(DESTDIR)$(LIBDIR)/boot
 	install -m 0644 lib/*.sh $(DESTDIR)$(LIBDIR)/lib/
 	install -m 0644 scripts/subcommands/*.sh $(DESTDIR)$(LIBDIR)/subcommands/
+	install -m 0755 boot/*.sh $(DESTDIR)$(LIBDIR)/boot/
 	install -m 0644 templates/* $(DESTDIR)$(LIBDIR)/templates/
 	install -m 0644 VERSION $(DESTDIR)$(LIBDIR)/VERSION
 	install -d $(DESTDIR)$(BINDIR)

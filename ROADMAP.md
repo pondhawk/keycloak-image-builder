@@ -9,7 +9,7 @@ validation (ADR-0012).
 | 2 | Repository scaffolding | ✅ Complete |
 | 3 | Installer | ✅ Complete |
 | 4 | Configuration | ✅ Complete |
-| 5 | systemd | ⏳ Planned |
+| 5 | systemd | ✅ Complete |
 | 6 | SELinux | ⏳ Planned |
 | 7 | Validation | ⏳ Planned |
 | 8 | Cluster support | ⏳ Planned |
@@ -19,6 +19,6 @@ validation (ADR-0012).
 
 ## Subcommand implementation status
 
-Implemented: `version`, `install`, `check`, `configure` (+ dispatcher, `--help`).
-Skeleton/pending: `build start stop restart status logs
-journal health verify cluster upgrade rollback ami-clean`.
+Implemented: `version`, `install`, `check`, `configure`, `start`, `stop`,
+`restart`, `status`, `logs`, `journal` (+ dispatcher, `--help`).
+Skeleton/pending: `build health verify cluster upgrade rollback ami-clean`.

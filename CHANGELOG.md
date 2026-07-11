@@ -20,6 +20,10 @@ All notable changes to KDT are documented here. Format loosely follows
   substituted) and `keycloak.env` (from the environment via `envsubst`) into
   `/etc/keycloak`, with an ADR-0002 neutrality guard. `--etc-dir` override,
   dry-run aware; Bats-tested.
+- Milestone 5: systemd integration — `lib/systemd.sh` + `start`/`stop`/`restart`/
+  `status`/`logs`/`journal` service commands (dry-run aware), and the
+  `boot/configure-node.sh` boot-config skeleton (env-render real; secret fetch
+  + IMDS to follow in the Secrets work). Bats-tested.
 
 ## [0.1.0] - 2026-07-11
 - Initial scaffold.
