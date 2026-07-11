@@ -20,10 +20,28 @@ readonly EX_UNIMPLEMENTED=69 # planned but not yet implemented
 readonly KDT_KEYCLOAK_BASELINE="26"
 readonly KDT_JAVA_MAJOR="21"
 
+# --- Filesystem layout (ADR-0001) ---
+readonly KC_OPT="/opt/keycloak"
+readonly KC_CURRENT="/opt/keycloak/current"
+readonly KC_CUSTOM="/opt/keycloak-custom"
+readonly KC_ETC="/etc/keycloak"
+readonly KC_VAR_LIB="/var/lib/keycloak"
+readonly KC_VAR_LOG="/var/log/keycloak"
+readonly KC_VAR_BACKUPS="/var/backups/keycloak"
+readonly KC_USER="keycloak"
+readonly KC_GROUP="keycloak"
+
+# --- Keycloak distribution source ---
+readonly KEYCLOAK_DOWNLOAD_BASE="https://github.com/keycloak/keycloak/releases/download"
+
+# is_dry_run — true when --dry-run is active.
+is_dry_run() { [[ "${DRY_RUN:-0}" == "1" ]]; }
+
 # run <cmd...> — execute a mutating command, respecting --dry-run.
 # Use for every side-effecting call so dry-run is honoured (coding standards).
 run() {
-  if [[ "$DRY_RUN" == "1" ]]; then
+  local IFS=' ' # join $* with spaces in log messages (dispatcher sets IFS=\n\t)
+  if is_dry_run; then
     log_info "[dry-run] $*"
     return 0
   fi
