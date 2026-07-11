@@ -1,11 +1,12 @@
-# keycloak.fc — SELinux file-context rules for KDT paths (ADR-0011).
-# Applied via `semanage fcontext -a -t <type> '<regex>'` + `restorecon -R`.
+# KDT SELinux file-context rules (ADR-0011).
+# Format: <path-regex>  <SELinux type>
+# Applied by: kcadmin selinux apply  (semanage fcontext -a … ; restorecon -R)
 # Types are indicative and validated on Rocky Linux 10 during implementation.
 
-/opt/keycloak(/.*)?             gen_context(system_u:object_r:usr_t,s0)
-/opt/keycloak/current/bin/.*    gen_context(system_u:object_r:bin_t,s0)
-/opt/keycloak-custom(/.*)?      gen_context(system_u:object_r:usr_t,s0)
-/etc/keycloak(/.*)?             gen_context(system_u:object_r:etc_t,s0)
-/var/lib/keycloak(/.*)?         gen_context(system_u:object_r:var_lib_t,s0)
-/var/log/keycloak(/.*)?         gen_context(system_u:object_r:var_log_t,s0)
-/var/backups/keycloak(/.*)?     gen_context(system_u:object_r:var_t,s0)
+/opt/keycloak(/.*)?              usr_t
+/opt/keycloak/current/bin(/.*)?  bin_t
+/opt/keycloak-custom(/.*)?       usr_t
+/etc/keycloak(/.*)?              etc_t
+/var/lib/keycloak(/.*)?          var_lib_t
+/var/log/keycloak(/.*)?          var_log_t
+/var/backups/keycloak(/.*)?      var_t

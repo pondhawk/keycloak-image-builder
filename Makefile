@@ -32,6 +32,8 @@ install: ## Install kcadmin onto this host (golden instance)
 	install -m 0644 lib/*.sh $(DESTDIR)$(LIBDIR)/lib/
 	install -m 0644 scripts/subcommands/*.sh $(DESTDIR)$(LIBDIR)/subcommands/
 	install -m 0755 boot/*.sh $(DESTDIR)$(LIBDIR)/boot/
+	install -d $(DESTDIR)$(LIBDIR)/selinux
+	install -m 0644 selinux/* $(DESTDIR)$(LIBDIR)/selinux/
 	install -m 0644 templates/* $(DESTDIR)$(LIBDIR)/templates/
 	install -m 0644 VERSION $(DESTDIR)$(LIBDIR)/VERSION
 	install -d $(DESTDIR)$(BINDIR)

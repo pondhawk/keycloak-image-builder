@@ -24,6 +24,10 @@ All notable changes to KDT are documented here. Format loosely follows
   `status`/`logs`/`journal` service commands (dry-run aware), and the
   `boot/configure-node.sh` boot-config skeleton (env-render real; secret fetch
   + IMDS to follow in the Secrets work). Bats-tested.
+- Milestone 6: SELinux — `lib/selinux.sh` + `kcadmin selinux apply`
+  (`semanage fcontext` + `restorecon`, idempotent, dry-run aware) driven by a
+  `semanage`-friendly `selinux/keycloak.fc`; applied automatically during
+  `install`. Enforcing is never disabled (ADR-0011). Bats-tested.
 
 ## [0.1.0] - 2026-07-11
 - Initial scaffold.

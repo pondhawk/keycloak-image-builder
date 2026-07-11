@@ -122,6 +122,20 @@ _install_keycloak_dist() {
   log_info "installed: $target"
 }
 
+# Apply SELinux file contexts for KDT paths (ADR-0011); skip if SELinux is off.
+_install_selinux() {
+  if ! selinux_available; then
+    log_warn "SELinux not enabled; skipping context setup (Enforcing required in production — ADR-0011)"
+    return 0
+  fi
+  local fc
+  if ! fc="$(_resolve_selinux_fc)"; then
+    log_warn "SELinux fcontext file not found; skipping context setup"
+    return 0
+  fi
+  selinux_apply "$fc"
+}
+
 # Point 'current' at this version on first install or when --activate is given.
 # Otherwise leave it (upgrade flow owns the swap — ADR-0006).
 _maybe_set_current() {
@@ -175,5 +189,6 @@ cmd_install() {
   _ensure_dirs || return $?
   _install_keycloak_dist "$kc_version" || return $?
   _maybe_set_current "$kc_version" "$activate" || return $?
+  _install_selinux || return $?
   log_info "install complete: $KC_OPT/keycloak-$kc_version"
 }
