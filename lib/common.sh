@@ -37,6 +37,13 @@ readonly KEYCLOAK_DOWNLOAD_BASE="https://github.com/keycloak/keycloak/releases/d
 # is_dry_run — true when --dry-run is active.
 is_dry_run() { [[ "${DRY_RUN:-0}" == "1" ]]; }
 
+# join_sp <items...> — join arguments with single spaces (the dispatcher sets
+# IFS=\n\t, so "${arr[*]}" would otherwise join with newlines in messages).
+join_sp() {
+  local IFS=' '
+  printf '%s' "$*"
+}
+
 # run <cmd...> — execute a mutating command, respecting --dry-run.
 # Use for every side-effecting call so dry-run is honoured (coding standards).
 run() {

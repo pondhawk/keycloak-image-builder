@@ -28,6 +28,10 @@ All notable changes to KDT are documented here. Format loosely follows
   (`semanage fcontext` + `restorecon`, idempotent, dry-run aware) driven by a
   `semanage`-friendly `selinux/keycloak.fc`; applied automatically during
   `install`. Enforcing is never disabled (ADR-0011). Bats-tested.
+- Milestone 7: Validation — `kcadmin build` (`kc.sh build`), `kcadmin health`
+  (node-local `/health/live`+`/health/ready`), and `kcadmin verify` (pre-clean
+  gate: Java, install, build, config, SELinux, units). Shared `lib/validate.sh`
+  reporting (also refactored `check` onto it) + `join_sp` helper. Bats-tested.
 
 ## [0.1.0] - 2026-07-11
 - Initial scaffold.

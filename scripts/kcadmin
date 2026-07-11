@@ -24,6 +24,8 @@ readonly KCADMIN_SELF KCADMIN_BIN_DIR KCADMIN_LIB_DIR KCADMIN_CMD_DIR
 source "$KCADMIN_LIB_DIR/common.sh"
 # shellcheck source=../lib/log.sh
 source "$KCADMIN_LIB_DIR/log.sh"
+# shellcheck source=../lib/validate.sh
+source "$KCADMIN_LIB_DIR/validate.sh"
 # shellcheck source=../lib/systemd.sh
 source "$KCADMIN_LIB_DIR/systemd.sh"
 # shellcheck source=../lib/selinux.sh

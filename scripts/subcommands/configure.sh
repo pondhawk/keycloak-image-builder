@@ -91,7 +91,7 @@ _configure_render_env() {
     [[ -n "${!v:-}" ]] || missing+=("$v")
   done
   if [[ ${#missing[@]} -gt 0 ]]; then
-    log_error "cannot render keycloak.env; missing required env: ${missing[*]}"
+    log_error "cannot render keycloak.env; missing required env: $(join_sp "${missing[@]}")"
     return "$EX_CONFIG"
   fi
 

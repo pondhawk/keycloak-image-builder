@@ -11,7 +11,7 @@ validation (ADR-0012).
 | 4 | Configuration | ✅ Complete |
 | 5 | systemd | ✅ Complete |
 | 6 | SELinux | ✅ Complete |
-| 7 | Validation | ⏳ Planned |
+| 7 | Validation | ✅ Complete |
 | 8 | Cluster support | ⏳ Planned |
 | 9 | Upgrade framework | ⏳ Planned |
 | 10 | Documentation | ⏳ Planned |
@@ -20,5 +20,6 @@ validation (ADR-0012).
 ## Subcommand implementation status
 
 Implemented: `version`, `install`, `check`, `configure`, `start`, `stop`,
-`restart`, `status`, `logs`, `journal`, `selinux` (+ dispatcher, `--help`).
-Skeleton/pending: `build health verify cluster upgrade rollback ami-clean`.
+`restart`, `status`, `logs`, `journal`, `selinux`, `build`, `health`, `verify`
+(+ dispatcher, `--help`).
+Skeleton/pending: `cluster upgrade rollback ami-clean`.
