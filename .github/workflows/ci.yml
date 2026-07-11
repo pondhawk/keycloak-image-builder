@@ -14,12 +14,14 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y shellcheck
-          # shfmt
-          curl -fsSL -o /usr/local/bin/shfmt \
-            https://github.com/mvdan/sh/releases/latest/download/shfmt_v3.10.0_linux_amd64 || true
-          # bats
-          sudo apt-get install -y bats
+          sudo apt-get install -y shellcheck bats
+          SHFMT_VER=v3.10.0
+          sudo curl -fsSL -o /usr/local/bin/shfmt \
+            "https://github.com/mvdan/sh/releases/download/${SHFMT_VER}/shfmt_${SHFMT_VER}_linux_amd64"
+          sudo chmod +x /usr/local/bin/shfmt
+          shellcheck --version | head -2
+          shfmt --version
+          bats --version
 
       - name: ShellCheck + shfmt
         run: make check
