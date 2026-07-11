@@ -48,6 +48,10 @@ The bake sequence, driven by `kcadmin` on the golden instance:
    instance → Actions → Image and templates → Create image) from the sanitized
    instance.
 
+OS patching: the bake also applies a full `dnf -y update` on the model instance
+before step 6 (`ami-clean`), so every AMI is fully patched at build time
+(ADR-0013).
+
 ### 2. Two AMI lineages, one codebase
 
 Each release produces up to two AMIs from the identical procedure and codebase,

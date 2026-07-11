@@ -36,6 +36,11 @@ owner has explicitly accepted hard downtime as reasonable for this system.
 There is exactly one production upgrade path. No rolling upgrade, no blue/green,
 no compatibility gating.
 
+Scope: this ADR governs **Keycloak version changes** (which may migrate the
+schema). **OS-only patches** — which change no Keycloak version and carry no
+schema risk — roll out **zero-downtime** via a rolling instance refresh per
+ADR-0013, not through this scale-to-0 path.
+
 #### Phase 1 — Version preparation (golden instance, offline)
 
 1. Install the new Keycloak version side-by-side under

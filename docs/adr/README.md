@@ -18,11 +18,13 @@ begins only after the relevant ADRs are **Accepted**.
 | [0010](0010-logging.md) | Logging | Accepted |
 | [0011](0011-selinux.md) | SELinux | Accepted |
 | [0012](0012-testing.md) | Testing | Accepted |
+| [0013](0013-os-patching-and-ami-refresh.md) | OS Patching & AMI Refresh | Accepted |
 
 Status values: **Planned** → **Proposed** (drafted, awaiting review) →
 **Accepted** / **Rejected** → **Superseded** (by a later ADR).
 
-> Note: this set adds two ADRs beyond blueprint §18 — **0003 Database Engine
-> Strategy** and **0008 Secrets Management** — and promotes systemd design to
-> its own record (**0005**), because each carries a significant, independent
-> decision.
+> Note: this set adds ADRs beyond blueprint §18 — **0003 Database Engine
+> Strategy**, **0008 Secrets Management**, and **0013 OS Patching & AMI Refresh**
+> — and promotes systemd design to its own record (**0005**), because each
+> carries a significant, independent decision. 0001–0012 are the original
+> Milestone-1 set; 0013 was added later during implementation.
