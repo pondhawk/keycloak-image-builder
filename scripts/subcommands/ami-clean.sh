@@ -104,7 +104,9 @@ cmd_ami_clean() {
   else
     : > /etc/machine-id 2> /dev/null || log_warn "could not truncate /etc/machine-id"
     rm -f /etc/ssh/ssh_host_* 2> /dev/null || true
-    command -v journalctl > /dev/null 2>&1 && journalctl --rotate --vacuum-time=1s > /dev/null 2>&1 || true
+    if command -v journalctl > /dev/null 2>&1; then
+      journalctl --rotate --vacuum-time=1s > /dev/null 2>&1 || true
+    fi
     rm -f /root/.bash_history 2> /dev/null || true
   fi
 
