@@ -26,18 +26,12 @@ source "$KCADMIN_LIB_DIR/common.sh"
 source "$KCADMIN_LIB_DIR/log.sh"
 # shellcheck source=../lib/validate.sh
 source "$KCADMIN_LIB_DIR/validate.sh"
-# shellcheck source=../lib/systemd.sh
-source "$KCADMIN_LIB_DIR/systemd.sh"
 # shellcheck source=../lib/selinux.sh
 source "$KCADMIN_LIB_DIR/selinux.sh"
 
 # --- Known subcommands (blueprint §11) ---
-readonly KCADMIN_COMMANDS=(
-  install configure build check version
-  start stop restart status logs journal
-  health verify cluster upgrade rollback ami-clean
-  selinux
-)
+# KDT is a model-instance build tool: install/update → verify → prepare-for-image.
+readonly KCADMIN_COMMANDS=(install verify ami-clean version)
 
 usage() {
   local cmds

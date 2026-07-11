@@ -1,47 +1,10 @@
 #!/usr/bin/env bats
-# build / health / verify — dry-run and structure (no real server/build needed).
+# verify — structure + the deterministic config/units checks (via overrides).
 
 setup() {
   REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
   KCADMIN="$REPO_ROOT/scripts/kcadmin"
 }
-
-# --- build ---
-
-@test "build --help exits 0" {
-  run "$KCADMIN" build --help
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"Build (augment)"* ]]
-}
-
-@test "dry-run build plans kc.sh build" {
-  run "$KCADMIN" --dry-run build
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"kc.sh build"* ]]
-  [[ "$output" == *"KC_CONFIG_FILE=/etc/keycloak/keycloak.conf"* ]]
-}
-
-@test "build rejects unknown args" {
-  run "$KCADMIN" build --bogus
-  [ "$status" -ne 0 ]
-}
-
-# --- health ---
-
-@test "health --help exits 0" {
-  run "$KCADMIN" health --help
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"health/live"* ]]
-}
-
-@test "health probes live and ready" {
-  run "$KCADMIN" health --management-port 59999
-  [[ "$output" == *"live"* ]]
-  [[ "$output" == *"ready"* ]]
-  [[ "$output" == *"checks:"* ]]
-}
-
-# --- verify ---
 
 @test "verify --help exits 0" {
   run "$KCADMIN" verify --help

@@ -5,8 +5,8 @@ lifecycle-manages **Keycloak 26.x** on **Rocky Linux 10 / systemd / SELinux
 Enforcing**, integrated with **AWS**. KDT builds an environment-neutral **golden
 AMI** that an **Auto Scaling Group** turns into a production Keycloak cluster.
 
-> Status: **early scaffolding** (v0.1.0). Milestone 1 (ADRs) complete;
-> Milestone 2 (scaffolding) in progress. See `ROADMAP.md`.
+> Status: **early** (v0.1.0). The four commands are implemented and CI-green;
+> real-instance testing and the boot secret-fetch remain. See `ROADMAP.md`.
 
 ## Documentation
 
@@ -34,10 +34,18 @@ make package  # build the release tarball
 
 ## The `kcadmin` command
 
+KDT is a **model-instance build tool**: install/update Keycloak → validate →
+prepare for imaging. It is not a production-node console (nodes are cattle).
+
 ```
 kcadmin [--dry-run] [--verbose] <command>
+
+  install --keycloak-version <v> --db-vendor <postgres|mysql>
+                 Install/update Keycloak on the model and prepare it
+  verify         Validate the install
+  ami-clean      Sanitize for imaging + neutrality gate (--check = gate only)
+  version        Toolkit + baseline versions
 ```
 
-Commands (blueprint §11): `install configure build check version start stop
-restart status logs journal health verify cluster upgrade rollback ami-clean`.
-Most are skeletons pending their implementation milestone.
+Runtime (boot config, clustering, scaling, upgrade, rollback) is handled by the
+baked-in systemd units + AWS + runbooks — not `kcadmin`.

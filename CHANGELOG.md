@@ -5,6 +5,16 @@ All notable changes to KDT are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+- **Scope consolidation:** `kcadmin` reduced to four model-instance commands —
+  `install` (now also renders neutral config + runs `kc.sh build` + SELinux),
+  `verify`, `ami-clean` (new; neutrality gate with `--check`), and `version`.
+  Dropped the pets-oriented commands (`start`/`stop`/`restart`/`status`/`logs`/
+  `journal`/`cluster`/`upgrade`/`rollback`/`health`) and folded `configure`/
+  `build`/`check`/`selinux` into `install`/`verify`. Rationale: cattle/immutable
+  model — nobody runs commands on production nodes; the toolkit builds a clean
+  image. `boot/configure-node.sh` renders `keycloak.env` self-contained.
+
 ### Added
 - Milestone 1: all 12 Architecture Decision Records (`docs/adr/`), Accepted.
 - Type B rollback runbook (`docs/operations/rollback-with-db-restore.md`).

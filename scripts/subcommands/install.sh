@@ -1,25 +1,27 @@
 #!/usr/bin/env bash
-# subcommand: install — lay down Java, the Keycloak distribution, the directory
-# tree, and the service user (blueprint §19 M3; ADR-0001/0004).
-# Idempotent and fail-safe: never overwrites an existing working install.
+# subcommand: install — install/update Keycloak on the model instance and
+# prepare it to be imaged (ADR-0001/0002/0003/0004/0011).
+# Lays down Java, the distribution (side-by-side), the directory tree, the
+# service user, the neutral keycloak.conf, runs kc.sh build, and applies SELinux
+# file contexts. Idempotent and fail-safe; never overwrites a working install.
 # shellcheck shell=bash
 
 _install_usage() {
   cat << EOF
-Usage: kcadmin install --keycloak-version <ver> [options]
+Usage: kcadmin install --keycloak-version <ver> --db-vendor <postgres|mysql> [options]
 
-Lay down OpenJDK, the Keycloak distribution (side-by-side), the directory tree,
-and the 'keycloak' service user. Safe to re-run.
+Install or update Keycloak on the model instance and prepare it for imaging.
 
 Options:
-  --keycloak-version <ver>   Keycloak version to install, e.g. 26.1.4 (required)
+  --keycloak-version <ver>   Keycloak version, e.g. 26.1.4 (required)
+  --db-vendor <v>            postgres | mysql (required; baked into the AMI)
   --java-package <pkg>       OpenJDK package (default: java-${KDT_JAVA_MAJOR}-openjdk-headless)
+  --etc-dir <dir>            Config dir (default: /etc/keycloak)
   --activate                 Point /opt/keycloak/current at this version
   -h, --help                 Show this help
 EOF
 }
 
-# Validate a Keycloak version string (e.g. 26 or 26.1 or 26.1.4).
 _install_validate_version() {
   local v="$1"
   if [[ ! "$v" =~ ^[0-9]+(\.[0-9]+){1,2}$ ]]; then
@@ -43,7 +45,6 @@ _install_check_privileges() {
   fi
 }
 
-# Ensure an OpenJDK matching the baseline major is available.
 _ensure_java() {
   local pkg="$1"
   if command -v java > /dev/null 2>&1 &&
@@ -62,7 +63,6 @@ _ensure_java() {
   }
 }
 
-# Ensure the 'keycloak' system group and user exist (no login).
 _ensure_user() {
   if ! getent group "$KC_GROUP" > /dev/null 2>&1; then
     run groupadd --system "$KC_GROUP"
@@ -73,17 +73,16 @@ _ensure_user() {
   fi
 }
 
-# Ensure the directory tree with ownership/permissions (ADR-0001).
 _ensure_dirs() {
+  local etc_dir="$1"
   run install -d -o root -g root -m 0755 "$KC_OPT"
   run install -d -o root -g root -m 0755 \
     "$KC_CUSTOM" "$KC_CUSTOM/themes" "$KC_CUSTOM/providers" "$KC_CUSTOM/scripts"
-  run install -d -o root -g "$KC_GROUP" -m 0750 "$KC_ETC"
+  run install -d -o root -g "$KC_GROUP" -m 0750 "$etc_dir"
   run install -d -o "$KC_USER" -g "$KC_GROUP" -m 0750 \
     "$KC_VAR_LIB" "$KC_VAR_LOG" "$KC_VAR_BACKUPS"
 }
 
-# Download and place the Keycloak distribution side-by-side. Never overwrite.
 _install_keycloak_dist() {
   local ver="$1"
   local target="$KC_OPT/keycloak-$ver"
@@ -91,19 +90,16 @@ _install_keycloak_dist() {
     log_info "Keycloak $ver already installed (skipping): $target"
     return 0
   fi
-
   local url="$KEYCLOAK_DOWNLOAD_BASE/$ver/keycloak-$ver.tar.gz"
   if is_dry_run; then
     log_info "[dry-run] would download $url and extract to $target"
     return 0
   fi
-
   require_cmd curl tar || return "$EX_CONFIG"
   local tmp
   tmp="$(mktemp -d)"
   # shellcheck disable=SC2064
   trap "rm -rf '$tmp'" RETURN
-
   log_info "downloading $url"
   run curl -fSL -o "$tmp/kc.tgz" "$url" || {
     log_error "download failed: $url"
@@ -122,6 +118,58 @@ _install_keycloak_dist() {
   log_info "installed: $target"
 }
 
+_install_resolve_templates() {
+  local d
+  for d in "$KCADMIN_BIN_DIR/../templates" "$KCADMIN_LIB_DIR/../templates"; do
+    if [[ -d "$d" ]]; then
+      readlink -f "$d"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Render the NEUTRAL keycloak.conf with the DB vendor; guard neutrality (ADR-0002).
+_install_render_conf() {
+  local vendor="$1" etc_dir="$2"
+  local tpl_dir src rendered directives
+  tpl_dir="$(_install_resolve_templates)" || {
+    log_error "templates directory not found"
+    return "$EX_CONFIG"
+  }
+  src="$tpl_dir/keycloak.conf"
+  [[ -f "$src" ]] || {
+    log_error "template not found: $src"
+    return "$EX_CONFIG"
+  }
+  rendered="$(sed "s/__DB_VENDOR__/$vendor/g" "$src")"
+  directives="$(grep -vE '^[[:space:]]*(#|$)' <<< "$rendered" || true)"
+  if grep -qiE 'password|secret|://|amazonaws\.com' <<< "$directives"; then
+    log_error "neutrality violation: keycloak.conf would contain a secret/endpoint"
+    return "$EX_CONFIG"
+  fi
+  run install -d -m 0750 "$etc_dir"
+  if is_dry_run; then
+    log_info "[dry-run] would write $etc_dir/keycloak.conf (db=$vendor)"
+    return 0
+  fi
+  printf '%s\n' "$rendered" > "$etc_dir/keycloak.conf"
+  chmod 0640 "$etc_dir/keycloak.conf"
+  log_info "rendered $etc_dir/keycloak.conf (db=$vendor)"
+}
+
+# Run kc.sh build against the active install, using the neutral keycloak.conf.
+_install_build() {
+  local etc_dir="$1"
+  local kcsh="$KC_CURRENT/bin/kc.sh"
+  if ! is_dry_run && [[ ! -x "$kcsh" ]]; then
+    log_error "cannot build: $kcsh not found"
+    return "$EX_CONFIG"
+  fi
+  log_info "building Keycloak (optimized)"
+  run env KC_CONFIG_FILE="$etc_dir/keycloak.conf" "$kcsh" build
+}
+
 # Apply SELinux file contexts for KDT paths (ADR-0011); skip if SELinux is off.
 _install_selinux() {
   if ! selinux_available; then
@@ -137,27 +185,35 @@ _install_selinux() {
 }
 
 # Point 'current' at this version on first install or when --activate is given.
-# Otherwise leave it (upgrade flow owns the swap — ADR-0006).
 _maybe_set_current() {
   local ver="$1" activate="$2"
   if [[ "$activate" == "1" || ! -e "$KC_CURRENT" ]]; then
     run ln -sfn "keycloak-$ver" "$KC_CURRENT"
     log_info "current -> keycloak-$ver"
   else
-    log_info "current unchanged ($(readlink "$KC_CURRENT" 2> /dev/null || echo '?')); use 'upgrade' to activate"
+    log_info "current unchanged ($(readlink "$KC_CURRENT" 2> /dev/null || echo '?')); pass --activate to switch"
   fi
 }
 
 cmd_install() {
-  local kc_version="" java_pkg="java-${KDT_JAVA_MAJOR}-openjdk-headless" activate=0
+  local kc_version="" vendor="" etc_dir="$KC_ETC" activate=0
+  local java_pkg="java-${KDT_JAVA_MAJOR}-openjdk-headless"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --keycloak-version)
         kc_version="${2:-}"
         shift 2
         ;;
+      --db-vendor)
+        vendor="${2:-}"
+        shift 2
+        ;;
       --java-package)
         java_pkg="${2:-}"
+        shift 2
+        ;;
+      --etc-dir)
+        etc_dir="${2:-}"
         shift 2
         ;;
       --activate)
@@ -180,15 +236,28 @@ cmd_install() {
     log_error "install: --keycloak-version is required (e.g. 26.1.4)"
     return "$EX_USAGE"
   }
+  case "$vendor" in
+    postgres | mysql) ;;
+    "")
+      log_error "install: --db-vendor is required (postgres|mysql)"
+      return "$EX_USAGE"
+      ;;
+    *)
+      log_error "install: invalid --db-vendor: '$vendor' (postgres|mysql)"
+      return "$EX_USAGE"
+      ;;
+  esac
   _install_validate_version "$kc_version" || return "$EX_USAGE"
   _install_check_privileges || return "$EX_CONFIG"
 
-  log_info "installing Keycloak $kc_version (java package: $java_pkg)"
+  log_info "installing Keycloak $kc_version (db=$vendor, java=$java_pkg)"
   _ensure_java "$java_pkg" || return $?
   _ensure_user || return $?
-  _ensure_dirs || return $?
+  _ensure_dirs "$etc_dir" || return $?
   _install_keycloak_dist "$kc_version" || return $?
   _maybe_set_current "$kc_version" "$activate" || return $?
+  _install_render_conf "$vendor" "$etc_dir" || return $?
+  _install_build "$etc_dir" || return $?
   _install_selinux || return $?
-  log_info "install complete: $KC_OPT/keycloak-$kc_version"
+  log_info "install complete: $KC_OPT/keycloak-$kc_version (ready to verify + ami-clean)"
 }
