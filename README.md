@@ -1,51 +1,155 @@
 # Keycloak Deployment Toolkit (KDT)
 
-A Bash CLI toolkit (`kcadmin`) that installs, configures, validates, and
-lifecycle-manages **Keycloak 26.x** on **RHEL-family 10 (Rocky/Alma/RHEL) / systemd / SELinux
-Enforcing**, integrated with **AWS**. KDT builds an environment-neutral **golden
-AMI** that an **Auto Scaling Group** turns into a production Keycloak cluster.
+`kcadmin` — a Bash CLI that turns a fresh **RHEL-family 10** instance into a
+**golden Keycloak model**, then sanitizes it so you can bake an environment-neutral
+AMI. That AMI is what your Auto Scaling Group launches.
 
-> Status: **early** (v0.1.0). The four commands are implemented and CI-green;
-> real-instance testing and the boot secret-fetch remain. See `ROADMAP.md`.
+> **Status:** v0.1.0 — the four commands work and CI is green; real-instance
+> testing and the boot secret-fetch remain. See `ROADMAP.md`.
 
-## Documentation
+KDT is a **model-instance build tool**, not a production-node console (nodes are
+cattle). It does exactly three things on the model instance:
 
-- **Architecture blueprint:** `Keycloak_Deployment_Toolkit_Architecture_Blueprint.md`
-- **Decisions (ADRs):** `docs/adr/` — all 12 Accepted (`docs/adr/README.md`)
-- **Operations runbooks:** `docs/operations/`
-- **Contributor guidance:** `.claude/` (coding standards, project rules)
+**install/update → verify → prepare-for-image.**
 
-## At a glance
+---
 
-- **Two DB engines** — PostgreSQL (default) and MySQL, both first-class.
-- **Immutable upgrades** — scale-to-0 cutover to a new per-vendor AMI.
-- **Secrets** — AWS Secrets Manager → tmpfs, never in the AMI.
-- **Clustering** — built-in JDBC_PING2 stack over the shared RDS.
-- **TLS** — terminated at the ALB (ACM); nodes serve plain HTTP.
+## Requirements
+
+- **RHEL-family 10** (Rocky / AlmaLinux / RHEL) — needs `dnf` and **SELinux Enforcing**
+- **root** on the model instance (`sudo`)
+- Internet access to download the Keycloak distribution
+- An existing, populated **RDS** (PostgreSQL or MySQL) for the running cluster
+  (KDT never creates databases)
+
+---
+
+## Install `kcadmin`
+
+On the model instance, from a published release:
+
+```bash
+KDT_VERSION=0.1.0
+curl -fsSL -o kcadmin.tar.gz \
+  "https://github.com/pondhawk/keycloak-admin-tool/releases/download/v${KDT_VERSION}/kcadmin-${KDT_VERSION}.tar.gz"
+tar xzf kcadmin.tar.gz
+sudo make -C "kcadmin-${KDT_VERSION}" install
+```
+
+Or from source:
+
+```bash
+git clone https://github.com/pondhawk/keycloak-admin-tool.git
+sudo make -C keycloak-admin-tool install
+```
+
+Confirm:
+
+```bash
+kcadmin version
+```
+
+---
+
+## Build a golden AMI (the whole workflow)
+
+```bash
+# 1. Install/update Keycloak and prepare it (Java, distribution, config, build, SELinux)
+sudo kcadmin install --keycloak-version 26.1.4 --db-vendor mysql
+
+# 2. Validate the install
+sudo kcadmin verify
+
+# 3. Sanitize for imaging (removes secrets/identity, runs the neutrality gate)
+sudo kcadmin ami-clean
+
+# 4. Create the AMI in the AWS Console:
+#    EC2 → the model instance → Actions → Image and templates → Create image
+```
+
+Preview any step without changing anything using `--dry-run`:
+
+```bash
+kcadmin --dry-run install --keycloak-version 26.1.4 --db-vendor postgres
+```
+
+---
+
+## Commands
+
+### `install` — install/update Keycloak on the model
+
+```bash
+# Fresh install (mysql-flavoured AMI)
+sudo kcadmin install --keycloak-version 26.1.4 --db-vendor mysql
+
+# Postgres-flavoured AMI, and activate this version's symlink
+sudo kcadmin install --keycloak-version 26.1.4 --db-vendor postgres --activate
+
+# Update: install a newer version side-by-side (repeat verify/ami-clean, bake a new AMI)
+sudo kcadmin install --keycloak-version 26.2.0 --db-vendor mysql --activate
+```
+
+| Option | Meaning |
+|--------|---------|
+| `--keycloak-version <v>` | Keycloak version to install (required), e.g. `26.1.4` |
+| `--db-vendor <v>` | `postgres` or `mysql` (required; baked into the AMI) |
+| `--java-package <pkg>` | OpenJDK package (default `java-21-openjdk-headless`) |
+| `--activate` | Point `/opt/keycloak/current` at this version |
+
+### `verify` — validate the install
+
+```bash
+sudo kcadmin verify
+```
+
+Checks Java, the install, `kc.sh build`, rendered config, SELinux Enforcing, and
+the systemd units. Exits non-zero if any check fails.
+
+### `ami-clean` — prepare for imaging
+
+```bash
+# Sanitize this instance and run the neutrality gate
+sudo kcadmin ami-clean
+
+# Run ONLY the neutrality gate (no changes) — e.g. to re-confirm before imaging
+kcadmin ami-clean --check
+```
+
+Removes secrets, environment-specific config, runtime state, and machine
+identity, then **fails** if anything sensitive remains.
+
+### `version` — show versions
+
+```bash
+kcadmin version
+```
+
+---
+
+## Global flags
+
+```bash
+kcadmin --dry-run <command>   # show planned actions, change nothing
+kcadmin --verbose <command>   # debug-level logging
+kcadmin --help                # usage
+```
+
+---
 
 ## Development
 
 ```bash
-make check    # ShellCheck + shfmt
-make test     # Bats
-make install  # install kcadmin (golden instance)
-make package  # build the release tarball
+make check     # ShellCheck + shfmt
+make test      # Bats
+make package   # build the release tarball (kcadmin-<version>.tar.gz)
 ```
 
-## The `kcadmin` command
+---
 
-KDT is a **model-instance build tool**: install/update Keycloak → validate →
-prepare for imaging. It is not a production-node console (nodes are cattle).
+## Documentation
 
-```
-kcadmin [--dry-run] [--verbose] <command>
-
-  install --keycloak-version <v> --db-vendor <postgres|mysql>
-                 Install/update Keycloak on the model and prepare it
-  verify         Validate the install
-  ami-clean      Sanitize for imaging + neutrality gate (--check = gate only)
-  version        Toolkit + baseline versions
-```
-
-Runtime (boot config, clustering, scaling, upgrade, rollback) is handled by the
-baked-in systemd units + AWS + runbooks — not `kcadmin`.
+- **Blueprint:** `Keycloak_Deployment_Toolkit_Architecture_Blueprint.md`
+- **Decisions (ADRs):** `docs/adr/` (`docs/adr/README.md`)
+- **Runbooks:** `docs/operations/`
+- **Contributor guidance:** `.claude/`

@@ -45,7 +45,7 @@ install: ## Install kcadmin onto this host (golden instance)
 package: ## Build the release tarball
 	@tar czf kcadmin-$(VERSION).tar.gz \
 		--transform 's,^,kcadmin-$(VERSION)/,' \
-		scripts lib systemd selinux templates Makefile VERSION README.md
+		scripts lib boot systemd selinux templates Makefile VERSION README.md
 	@sha256sum kcadmin-$(VERSION).tar.gz > kcadmin-$(VERSION).tar.gz.sha256
 	@echo "built kcadmin-$(VERSION).tar.gz"
 
