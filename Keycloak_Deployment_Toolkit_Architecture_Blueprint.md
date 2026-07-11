@@ -38,7 +38,8 @@ The toolkit is not simply an installer. It is an operational platform.
 
 # 3. Target Platform
 
-Operating System: - Rocky Linux 10 (primary target)
+Operating System: - RHEL-family 10 (Rocky Linux 10 is the reference target;
+AlmaLinux 10 / RHEL 10 also supported — requires dnf + SELinux)
 
 Keycloak: - 26.x (default baseline; toolkit is version-parameterized)
 
@@ -409,7 +410,7 @@ Each milestone must be independently reviewable.
 
 The project is complete when:
 
--   A new Rocky Linux 10 EC2 instance becomes a production-ready
+-   A new RHEL-family 10 EC2 instance becomes a production-ready
     Keycloak cluster node using one documented command.
 -   All lifecycle operations are documented and automated.
 -   All scripts are idempotent.

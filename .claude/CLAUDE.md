@@ -5,7 +5,7 @@ Guidance for working in this repository.
 ## What this is
 
 KDT is a **Bash CLI toolkit (`kcadmin`)** that installs, configures, validates,
-and lifecycle-manages **Keycloak 26.x** on **Rocky Linux 10 / systemd / SELinux
+and lifecycle-manages **Keycloak 26.x** on **RHEL-family 10 (Rocky/Alma/RHEL) / systemd / SELinux
 Enforcing**, integrated with **AWS**. It builds an environment-neutral **golden
 AMI** consumed by an **Auto Scaling Group**. It is orchestration glue — not a
 service or a compiled app.

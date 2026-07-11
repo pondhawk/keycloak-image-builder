@@ -63,7 +63,7 @@ correct and **survive a full relabel**.
 | `/var/backups/keycloak` | `var_t` | read/write |
 | `/run/keycloak` (tmpfs) | runtime dir context | read/write |
 
-(Exact type labels are validated on Rocky Linux 10 during implementation.)
+(Exact type labels are validated on RHEL-family 10 during implementation.)
 
 ### 4. tmpfs `/run/keycloak` labeled at boot
 

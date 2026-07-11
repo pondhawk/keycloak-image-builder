@@ -7,7 +7,7 @@
 
 ## Context
 
-Keycloak runs as a systemd service on Rocky Linux 10. The service must fit the
+Keycloak runs as a systemd service on RHEL-family 10 (Rocky/Alma/RHEL). The service must fit the
 established model:
 
 - The server is **pre-built** at bake, so nodes start with

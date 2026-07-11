@@ -26,7 +26,7 @@ kcadmin ami-clean         # then create the AMI in the AWS Console
 ## Remaining
 
 - Boot secret-fetch (ADR-0008) in `boot/configure-node.sh` (Secrets Manager + IMDS).
-- Real-instance test on Rocky Linux 10 (install → verify → ami-clean → image).
+- Real-instance test on a RHEL-family 10 host, e.g. Rocky Linux 10 (install → verify → ami-clean → image).
 - Operational docs: upgrade runbook, OS-patching runbook (ADR-0013), README polish.
 
 ## Note on scope

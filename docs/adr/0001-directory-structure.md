@@ -122,7 +122,7 @@ Three roles, each in its own tree so none can be mistaken for another:
 
 - Eliminates the `/opt/keycloak` name collision: Role A and Role B can never be
   confused by a human, an upgrade step, a cleanup script, or `restorecon`.
-- Canonical paths align with Rocky Linux / RPM conventions (`/usr/lib/jvm`,
+- Canonical paths align with RHEL-family / RPM conventions (`/usr/lib/jvm`,
   `/opt`, `/etc`, `/var`), so SELinux fcontext defaults and operator intuition
   mostly "just work."
 - Custom assets survive upgrades by construction — they live outside every

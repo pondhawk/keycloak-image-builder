@@ -1,7 +1,7 @@
 # Keycloak Deployment Toolkit (KDT)
 
 A Bash CLI toolkit (`kcadmin`) that installs, configures, validates, and
-lifecycle-manages **Keycloak 26.x** on **Rocky Linux 10 / systemd / SELinux
+lifecycle-manages **Keycloak 26.x** on **RHEL-family 10 (Rocky/Alma/RHEL) / systemd / SELinux
 Enforcing**, integrated with **AWS**. KDT builds an environment-neutral **golden
 AMI** that an **Auto Scaling Group** turns into a production Keycloak cluster.
 
