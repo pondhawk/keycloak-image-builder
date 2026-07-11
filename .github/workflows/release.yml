@@ -1,0 +1,28 @@
+name: Release
+
+# Build the versioned release tarball and publish it as a GitHub Release
+# when a semver tag is pushed (ADR-0004 distribution model).
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build tarball
+        run: make package
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            kcadmin-*.tar.gz
+            kcadmin-*.tar.gz.sha256
+          generate_release_notes: true

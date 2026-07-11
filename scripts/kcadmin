@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+#
+# kcadmin — Keycloak Deployment Toolkit CLI (dispatcher only; no business logic).
+# See docs/adr/ for architecture. Coding standards: .claude/coding-standards.md
+#
+set -Eeuo pipefail
+IFS=$'\n\t'
+
+# --- Resolve install layout (works from the repo or from an installed copy) ---
+KCADMIN_SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+KCADMIN_BIN_DIR="$(dirname "$KCADMIN_SELF")"
+if [[ -d "$KCADMIN_BIN_DIR/../lib" && -d "$KCADMIN_BIN_DIR/subcommands" ]]; then
+  # running from the repo: scripts/kcadmin + ../lib + ./subcommands
+  KCADMIN_LIB_DIR="$(readlink -f "$KCADMIN_BIN_DIR/../lib")"
+  KCADMIN_CMD_DIR="$(readlink -f "$KCADMIN_BIN_DIR/subcommands")"
+else
+  # running installed: /usr/local/bin/kcadmin + /usr/local/lib/kcadmin/{lib,subcommands}
+  KCADMIN_LIB_DIR="${KCADMIN_LIB_DIR:-/usr/local/lib/kcadmin/lib}"
+  KCADMIN_CMD_DIR="${KCADMIN_CMD_DIR:-/usr/local/lib/kcadmin/subcommands}"
+fi
+readonly KCADMIN_SELF KCADMIN_BIN_DIR KCADMIN_LIB_DIR KCADMIN_CMD_DIR
+
+# shellcheck source=../lib/common.sh
+source "$KCADMIN_LIB_DIR/common.sh"
+# shellcheck source=../lib/log.sh
+source "$KCADMIN_LIB_DIR/log.sh"
+
+# --- Known subcommands (blueprint §11) ---
+readonly KCADMIN_COMMANDS=(
+  install configure build check version
+  start stop restart status logs journal
+  health verify cluster upgrade rollback ami-clean
+)
+
+usage() {
+  local cmds
+  cmds="$(IFS=' '; echo "${KCADMIN_COMMANDS[*]}")"
+  cat <<EOF
+kcadmin — Keycloak Deployment Toolkit
+
+Usage: kcadmin [global-options] <command> [args]
+
+Global options:
+  --dry-run     Perform no mutating action
+  --verbose     Debug-level logging
+  -h, --help    Show this help
+  --version     Show version
+
+Commands:
+  ${cmds}
+EOF
+}
+
+main() {
+  # Global flags (before the command)
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run) DRY_RUN=1; shift ;;
+      --verbose) VERBOSE=1; shift ;;
+      -h | --help) usage; return 0 ;;
+      --version) cmd_dispatch version; return $? ;;
+      --) shift; break ;;
+      -*) log_error "unknown global option: $1"; usage; return "$EX_USAGE" ;;
+      *) break ;;
+    esac
+  done
+
+  [[ $# -ge 1 ]] || { usage; return "$EX_USAGE"; }
+  local cmd="$1"; shift
+  cmd_dispatch "$cmd" "$@"
+}
+
+cmd_dispatch() {
+  local cmd="$1"; shift || true
+  local file fn
+  file="$KCADMIN_CMD_DIR/${cmd}.sh"
+  fn="cmd_${cmd//-/_}"
+  if [[ -f "$file" ]]; then
+    # shellcheck source=/dev/null
+    source "$file"
+    if declare -F "$fn" > /dev/null; then
+      "$fn" "$@"
+      return $?
+    fi
+  fi
+  log_error "command not implemented: ${cmd} (planned; see ROADMAP.md)"
+  return "$EX_UNIMPLEMENTED"
+}
+
+main "$@"

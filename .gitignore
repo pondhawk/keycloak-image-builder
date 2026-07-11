@@ -1,0 +1,19 @@
+# Build artifacts
+kcadmin-*.tar.gz
+kcadmin-*.tar.gz.sha256
+
+# Secrets — must NEVER be committed (ADR-0008)
+*.env
+!templates/keycloak.env
+!*.env.example
+secrets*
+*.pem
+*.key
+
+# Editor / OS
+*.swp
+.DS_Store
+
+# Local Claude Code session settings (not shared)
+.claude/settings.local.json
+.claude/*.tmp*

@@ -1,0 +1,22 @@
+# keycloak-config.service — boot-time node preparation (ADR-0005).
+# Root oneshot: fetch secrets (Secrets Manager) → render /etc/keycloak/keycloak.env
+# → render /run/keycloak/secrets.env (tmpfs) → validate → conditional bootstrap.
+# SKELETON: ExecStart script implemented in the systemd/Secrets milestone.
+[Unit]
+Description=Keycloak node boot configuration (secrets + env)
+After=network-online.target
+Wants=network-online.target
+Before=keycloak.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# tmpfs dir for secrets (ADR-0008); preserved for keycloak.service to read.
+RuntimeDirectory=keycloak
+RuntimeDirectoryMode=0750
+RuntimeDirectoryPreserve=yes
+# Implemented later; must fetch secrets, render env files, validate, exit non-zero on failure.
+ExecStart=/usr/local/lib/kcadmin/boot/configure-node.sh
+
+[Install]
+WantedBy=multi-user.target

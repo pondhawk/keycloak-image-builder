@@ -1,0 +1,33 @@
+# keycloak.service — the Keycloak server (ADR-0005).
+# Pre-built at bake; starts with --optimized (ADR-0004). Runs unprivileged.
+[Unit]
+Description=Keycloak
+After=network-online.target keycloak-config.service
+Wants=network-online.target
+Requires=keycloak-config.service
+
+[Service]
+Type=exec
+User=keycloak
+Group=keycloak
+# Config lives in /etc/keycloak, never inside the immutable install (ADR-0002).
+Environment=KC_CONFIG_FILE=/etc/keycloak/keycloak.conf
+EnvironmentFile=/etc/keycloak/keycloak.env
+# Secrets from tmpfs (ADR-0008); '-' = optional (absent when no secrets needed).
+EnvironmentFile=-/run/keycloak/secrets.env
+EnvironmentFile=-/run/keycloak/bootstrap.env
+ExecStart=/opt/keycloak/current/bin/kc.sh start --optimized
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+
+# Hardening (defense-in-depth, subordinate to SELinux — ADR-0005/0011)
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/keycloak /var/log/keycloak
+
+[Install]
+WantedBy=multi-user.target
