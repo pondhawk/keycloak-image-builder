@@ -16,6 +16,10 @@ All notable changes to KDT are documented here. Format loosely follows
   `current` symlink management. Idempotent, dry-run aware; Bats-tested.
 - Milestone 3: `kcadmin check` — read-only host prerequisite validation
   (Java, systemd, SELinux Enforcing, DNS, commands, optional RDS TCP; §12).
+- Milestone 4: `kcadmin configure` — render `keycloak.conf` (neutral, vendor
+  substituted) and `keycloak.env` (from the environment via `envsubst`) into
+  `/etc/keycloak`, with an ADR-0002 neutrality guard. `--etc-dir` override,
+  dry-run aware; Bats-tested.
 
 ## [0.1.0] - 2026-07-11
 - Initial scaffold.

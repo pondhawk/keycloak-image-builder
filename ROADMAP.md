@@ -8,7 +8,7 @@ validation (ADR-0012).
 | 1 | ADRs | ✅ Complete (12/12 Accepted) |
 | 2 | Repository scaffolding | ✅ Complete |
 | 3 | Installer | ✅ Complete |
-| 4 | Configuration | ⏳ Planned |
+| 4 | Configuration | ✅ Complete |
 | 5 | systemd | ⏳ Planned |
 | 6 | SELinux | ⏳ Planned |
 | 7 | Validation | ⏳ Planned |
@@ -19,6 +19,6 @@ validation (ADR-0012).
 
 ## Subcommand implementation status
 
-Implemented: `version`, `install`, `check` (+ dispatcher, `--help`).
-Skeleton/pending: `configure build start stop restart status logs
+Implemented: `version`, `install`, `check`, `configure` (+ dispatcher, `--help`).
+Skeleton/pending: `build start stop restart status logs
 journal health verify cluster upgrade rollback ami-clean`.
