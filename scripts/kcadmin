@@ -34,8 +34,11 @@ readonly KCADMIN_COMMANDS=(
 
 usage() {
   local cmds
-  cmds="$(IFS=' '; echo "${KCADMIN_COMMANDS[*]}")"
-  cat <<EOF
+  cmds="$(
+    IFS=' '
+    echo "${KCADMIN_COMMANDS[*]}"
+  )"
+  cat << EOF
 kcadmin — Keycloak Deployment Toolkit
 
 Usage: kcadmin [global-options] <command> [args]
@@ -55,23 +58,47 @@ main() {
   # Global flags (before the command)
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --dry-run) DRY_RUN=1; shift ;;
-      --verbose) VERBOSE=1; shift ;;
-      -h | --help) usage; return 0 ;;
-      --version) cmd_dispatch version; return $? ;;
-      --) shift; break ;;
-      -*) log_error "unknown global option: $1"; usage; return "$EX_USAGE" ;;
+      --dry-run)
+        DRY_RUN=1
+        shift
+        ;;
+      --verbose)
+        VERBOSE=1
+        shift
+        ;;
+      -h | --help)
+        usage
+        return 0
+        ;;
+      --version)
+        cmd_dispatch version
+        return $?
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        log_error "unknown global option: $1"
+        usage
+        return "$EX_USAGE"
+        ;;
       *) break ;;
     esac
   done
 
-  [[ $# -ge 1 ]] || { usage; return "$EX_USAGE"; }
-  local cmd="$1"; shift
+  [[ $# -ge 1 ]] || {
+    usage
+    return "$EX_USAGE"
+  }
+  local cmd="$1"
+  shift
   cmd_dispatch "$cmd" "$@"
 }
 
 cmd_dispatch() {
-  local cmd="$1"; shift || true
+  local cmd="$1"
+  shift || true
   local file fn
   file="$KCADMIN_CMD_DIR/${cmd}.sh"
   fn="cmd_${cmd//-/_}"

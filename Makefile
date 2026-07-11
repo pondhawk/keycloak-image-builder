@@ -14,7 +14,7 @@ help: ## Show this help
 
 .PHONY: check
 check: ## ShellCheck + shfmt (no changes)
-	shellcheck $(SH_FILES)
+	shellcheck -x -P SCRIPTDIR $(SH_FILES)
 	shfmt -i 2 -ci -sr -d $(SH_FILES)
 
 .PHONY: fmt

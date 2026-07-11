@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # lib/common.sh — shared constants and helpers. Sourced, never executed.
 # shellcheck shell=bash
+# The constants and mode flags below are this library's public API, consumed by
+# the dispatcher and subcommand files; SC2034 (assigned-but-unused within this
+# single file) is expected and intentional here.
+# shellcheck disable=SC2034
 
 # --- Global mode flags (set by the dispatcher) ---
 : "${DRY_RUN:=0}"
@@ -8,8 +12,8 @@
 
 # --- Reserved exit codes ---
 readonly EX_OK=0
-readonly EX_USAGE=64        # command-line usage error
-readonly EX_CONFIG=78       # configuration error
+readonly EX_USAGE=64         # command-line usage error
+readonly EX_CONFIG=78        # configuration error
 readonly EX_UNIMPLEMENTED=69 # planned but not yet implemented
 
 # --- Baseline versions (ADR-0003/0004) ---
@@ -31,7 +35,10 @@ run() {
 require_cmd() {
   local missing=0 c
   for c in "$@"; do
-    command -v "$c" > /dev/null 2>&1 || { log_error "missing required command: $c"; missing=1; }
+    command -v "$c" > /dev/null 2>&1 || {
+      log_error "missing required command: $c"
+      missing=1
+    }
   done
   [[ "$missing" == "0" ]] || return "$EX_CONFIG"
 }
