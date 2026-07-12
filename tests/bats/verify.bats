@@ -37,3 +37,28 @@ setup() {
   run "$KCADMIN" verify --systemd-dir "$sd"
   [[ "$output" == *"[PASS] units"* ]]
 }
+
+@test "verify passes providers when every custom JAR is deployed" {
+  local custom="$BATS_TEST_TMPDIR/custom" home="$BATS_TEST_TMPDIR/home"
+  mkdir -p "$custom/providers" "$home/providers"
+  echo x > "$custom/providers/foo.jar"
+  echo x > "$home/providers/foo.jar"
+  run "$KCADMIN" verify --custom-dir "$custom" --home "$home"
+  [[ "$output" == *"[PASS] providers"* ]]
+}
+
+@test "verify fails providers when a custom JAR is missing from the install" {
+  local custom="$BATS_TEST_TMPDIR/custom" home="$BATS_TEST_TMPDIR/home"
+  mkdir -p "$custom/providers" "$home/providers"
+  echo x > "$custom/providers/foo.jar"   # never copied to the install
+  run "$KCADMIN" verify --custom-dir "$custom" --home "$home"
+  [[ "$output" == *"[FAIL] providers"* ]]
+  [[ "$output" == *"foo.jar"* ]]
+}
+
+@test "verify skips providers when there are no custom providers" {
+  local custom="$BATS_TEST_TMPDIR/custom"
+  mkdir -p "$custom/providers"
+  run "$KCADMIN" verify --custom-dir "$custom"
+  [[ "$output" == *"[SKIP] providers"* ]]
+}

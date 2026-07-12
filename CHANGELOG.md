@@ -26,7 +26,9 @@ All notable changes to KDT are documented here. Format loosely follows
   `/opt/keycloak-custom/providers` into the active install before `kc.sh build`
   (ADR-0001, blueprint §8) — previously it only created the directory. Themes
   ship as provider JARs (best practice), so only providers is supported. Assets
-  carry across Keycloak upgrades; README documents the workflow.
+  carry across Keycloak upgrades; README documents the workflow. `verify` now
+  confirms **every** custom provider JAR landed in the install (FAILs, listing
+  any that didn't).
 - Boot secret-fetch implemented in `boot/configure-node.sh`: IMDSv2 (token +
   private IP + region), one Secrets Manager `get-secret-value` for the cluster's
   JSON secret, split into `keycloak.env` (non-secret) and tmpfs `secrets.env`

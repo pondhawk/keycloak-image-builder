@@ -14,8 +14,30 @@ config, SELinux Enforcing, and systemd units.
   --etc-dir <dir>      Config dir (default: /etc/keycloak)
   --systemd-dir <dir>  Unit dir (default: /usr/lib/systemd/system)
   --home <dir>         Keycloak home (default: /opt/keycloak/current)
+  --custom-dir <dir>   Custom assets root (default: /opt/keycloak-custom)
   -h, --help           Show this help
 EOF
+}
+
+# Confirm every custom provider JAR was deployed into the install (ADR-0001).
+_verify_custom_providers() {
+  local custom_dir="$1" home="$2"
+  local src="$custom_dir/providers" dst="$home/providers"
+  local entries missing=() f base
+  entries=("$src"/*)
+  if [[ ! -e "${entries[0]}" ]]; then
+    validate_item SKIP providers "no custom providers"
+    return 0
+  fi
+  for f in "${entries[@]}"; do
+    base="${f##*/}"
+    [[ -f "$dst/$base" ]] || missing+=("$base")
+  done
+  if [[ ${#missing[@]} -eq 0 ]]; then
+    validate_item PASS providers "all custom providers deployed to $dst"
+  else
+    validate_item FAIL providers "not deployed: $(join_sp "${missing[@]}")"
+  fi
 }
 
 _verify_java() {
@@ -73,7 +95,7 @@ _verify_units() {
 }
 
 cmd_verify() {
-  local etc_dir="$KC_ETC" sd_dir="$KC_SYSTEMD_DIR" home="$KC_CURRENT"
+  local etc_dir="$KC_ETC" sd_dir="$KC_SYSTEMD_DIR" home="$KC_CURRENT" custom_dir="$KC_CUSTOM"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --etc-dir)
@@ -86,6 +108,10 @@ cmd_verify() {
         ;;
       --home)
         home="${2:-}"
+        shift 2
+        ;;
+      --custom-dir)
+        custom_dir="${2:-}"
         shift 2
         ;;
       -h | --help)
@@ -106,5 +132,6 @@ cmd_verify() {
   _verify_config "$etc_dir"
   _verify_selinux
   _verify_units "$sd_dir"
+  _verify_custom_providers "$custom_dir" "$home"
   validate_summary
 }
