@@ -5,6 +5,12 @@ All notable changes to KDT are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Removed
+- Orphaned `templates/fluent-bit.conf`. Centralized logging (Fluent Bit →
+  CloudWatch, ADR-0010) is deferred to a follow-up — `fluent-bit` is not in base
+  RHEL repos and the packaging approach needs its own evaluation. On-node
+  JSON→journald logging is unaffected.
+
 ### Changed
 - **Scope consolidation:** `kcadmin` reduced to four model-instance commands —
   `install` (now also renders neutral config + runs `kc.sh build` + SELinux),

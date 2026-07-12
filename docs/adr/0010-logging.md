@@ -5,6 +5,14 @@
 - **Deciders:** James Moring (owner), Claude Code (architect)
 - **Format:** Nygard ADR (Context · Decision · Consequences)
 
+> **Implementation status (2026-07-12):** on-node JSON logging → journald is
+> implemented and works. The **centralized Fluent Bit → CloudWatch** path is
+> **deferred to a follow-up feature** and is NOT in v0.1.0 — partly because
+> `fluent-bit` is not in the base RHEL repos (it needs the official Fluent Bit
+> repo), which should be re-evaluated (e.g. vs. the Amazon CloudWatch agent)
+> when it is actually implemented. The orphaned `templates/fluent-bit.conf`
+> was removed.
+
 ## Context
 
 The blueprint (§13) requires structured logging, journalctl integration, log

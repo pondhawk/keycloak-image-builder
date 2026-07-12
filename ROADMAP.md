@@ -28,6 +28,9 @@ kcadmin ami-clean         # then create the AMI in the AWS Console
 - Boot secret-fetch (ADR-0008) in `boot/configure-node.sh` (Secrets Manager + IMDS).
 - Real-instance test on a RHEL-family 10 host, e.g. Rocky Linux 10 (install → verify → ami-clean → image).
 - Operational docs: upgrade runbook, OS-patching runbook (ADR-0013), README polish.
+- **Centralized logging** (Fluent Bit → CloudWatch, ADR-0010) — deferred
+  follow-up; `fluent-bit` isn't in base RHEL repos, so re-evaluate packaging
+  (vs. the CloudWatch agent) when implemented. On-node journald logging works today.
 
 ## Note on scope
 
