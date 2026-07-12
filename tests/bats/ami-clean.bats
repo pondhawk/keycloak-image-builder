@@ -20,6 +20,16 @@ setup() {
   [[ "$output" == *"[dry-run]"* ]]
 }
 
+@test "ami-clean prunes non-current Keycloak versions" {
+  local opt="$BATS_TEST_TMPDIR/opt"
+  mkdir -p "$opt/keycloak-26.1.4" "$opt/keycloak-26.2.0"
+  ln -s keycloak-26.2.0 "$opt/current"
+  run "$KCADMIN" --dry-run ami-clean --etc-dir "$ETC" --opt-dir "$opt"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"would remove old install: $opt/keycloak-26.1.4"* ]]
+  [[ "$output" != *"remove old install: $opt/keycloak-26.2.0"* ]]
+}
+
 @test "gate passes on a neutral config dir" {
   printf 'db=mysql\n' > "$ETC/keycloak.conf"
   run "$KCADMIN" ami-clean --check --etc-dir "$ETC"

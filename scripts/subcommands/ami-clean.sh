@@ -14,9 +14,39 @@ run the neutrality gate.
 
 Options:
   --etc-dir <dir>   Config dir (default: /etc/keycloak)
+  --opt-dir <dir>   Keycloak install root (default: /opt/keycloak)
   --check           Run only the neutrality gate (no changes) — safe to test
   -h, --help        Show this help
 EOF
+}
+
+# Remove every Keycloak install except the one 'current' points at. Rollback is
+# via the previous AMI, so old on-instance installs are pure AMI bloat.
+_amiclean_prune_versions() {
+  local opt_dir="$1" keep="" dir base
+  local current="$opt_dir/current"
+  if [[ -L "$current" ]]; then
+    keep="$(readlink "$current")"
+    keep="${keep##*/}"
+  fi
+  if [[ -z "$keep" ]]; then
+    log_warn "no 'current' symlink in $opt_dir; skipping old-version prune"
+    return 0
+  fi
+  shopt -s nullglob
+  local dirs=("$opt_dir"/keycloak-*)
+  shopt -u nullglob
+  for dir in "${dirs[@]}"; do
+    [[ -d "$dir" ]] || continue
+    base="${dir##*/}"
+    [[ "$base" == "$keep" ]] && continue
+    if is_dry_run; then
+      log_info "[dry-run] would remove old install: $dir"
+    else
+      log_info "removing old install: $dir"
+      rm -rf "$dir"
+    fi
+  done
 }
 
 _amiclean_rm() {
@@ -56,11 +86,15 @@ _amiclean_gate() {
 }
 
 cmd_ami_clean() {
-  local etc_dir="$KC_ETC" check_only=0
+  local etc_dir="$KC_ETC" opt_dir="$KC_OPT" check_only=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --etc-dir)
         etc_dir="${2:-}"
+        shift 2
+        ;;
+      --opt-dir)
+        opt_dir="${2:-}"
         shift 2
         ;;
       --check)
@@ -98,6 +132,8 @@ cmd_ami_clean() {
   _amiclean_purge "$KC_VAR_LOG"
   _amiclean_purge "$KC_VAR_BACKUPS"
   _amiclean_purge "$KC_VAR_LIB"
+  # Old Keycloak versions (keep only 'current')
+  _amiclean_prune_versions "$opt_dir"
   # Machine identity (regenerated per instance)
   if is_dry_run; then
     log_info "[dry-run] would truncate /etc/machine-id and remove SSH host keys"

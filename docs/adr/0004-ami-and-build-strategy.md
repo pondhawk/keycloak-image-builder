@@ -83,6 +83,7 @@ systemd units; SELinux policy; templates; docs; the neutral `keycloak.conf`.
 | `/etc/machine-id` (truncated) | force per-instance regeneration → unique node identity for clustering |
 | SSH host keys | regenerated per instance |
 | cloud-init instance state/logs, shell history, `/tmp` | prevent identity/secret bleed |
+| non-`current` Keycloak installs under `/opt/keycloak` | keep only the active version; rollback is via the previous AMI, so old installs are pure bloat (matters when the model is reused for OS patching, ADR-0013) |
 
 `ami-clean` is **idempotent** and ends with a **neutrality gate**: it scans for
 any residual secret or environment-specific value and **fails the bake** if one

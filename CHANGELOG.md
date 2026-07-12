@@ -16,6 +16,11 @@ All notable changes to KDT are documented here. Format loosely follows
   image. `boot/configure-node.sh` renders `keycloak.env` self-contained.
 
 ### Added
+- `ami-clean` prunes non-`current` Keycloak installs under `/opt/keycloak` (keeps
+  only the active version) — matters when the model instance is reused for OS
+  patching, where old versions would otherwise accumulate into every AMI.
+  `--opt-dir` override for testing.
+
 - Milestone 1: all 12 Architecture Decision Records (`docs/adr/`), Accepted.
 - Type B rollback runbook (`docs/operations/rollback-with-db-restore.md`).
 - Milestone 2: repository scaffolding — `kcadmin` dispatcher, `lib/` helpers,
