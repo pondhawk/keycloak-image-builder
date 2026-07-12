@@ -47,10 +47,11 @@ tarball. `kcadmin install` itself bakes everything the AMI needs (Keycloak,
 config, build, systemd units, boot script, SELinux). `make` is **not** required
 on the model instance.
 
-Download and extract a published release:
+Download and extract the latest release (the version is resolved automatically):
 
 ```bash
-KDT_VERSION=0.1.0
+KDT_VERSION=$(curl -fsSL https://api.github.com/repos/pondhawk/keycloak-admin-tool/releases/latest \
+  | sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p')
 curl -fsSL -o kcadmin.tar.gz \
   "https://github.com/pondhawk/keycloak-admin-tool/releases/download/v${KDT_VERSION}/kcadmin-${KDT_VERSION}.tar.gz"
 tar xzf kcadmin.tar.gz
