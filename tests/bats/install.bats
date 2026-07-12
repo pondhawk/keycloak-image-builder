@@ -24,6 +24,13 @@ setup() {
   [[ "$output" == *"invalid --keycloak-version"* ]]
 }
 
+@test "install refuses Keycloak older than the 26 baseline" {
+  run "$KCIMAGE" install --keycloak-version 25.0.6 --db-vendor mysql
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"not supported"* ]]
+  [[ "$output" == *"26.x or newer"* ]]
+}
+
 @test "install rejects an invalid vendor" {
   run "$KCIMAGE" install --keycloak-version 26.1.4 --db-vendor oracle
   [ "$status" -ne 0 ]

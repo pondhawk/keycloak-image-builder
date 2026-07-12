@@ -11,6 +11,21 @@ All notable changes to KIB are documented here. Format loosely follows
   RHEL repos and the packaging approach needs its own evaluation. On-node
   JSON→journald logging is unaffected.
 
+### Changed
+- **`install`/`upgrade` now hard-refuse Keycloak majors below 26** (was a
+  warning). The baked config is 26-era — jdbc-ping cache stack,
+  `KC_BOOTSTRAP_ADMIN_*`, management port — and those are mostly *runtime*
+  options, so an older version would pass `install`/`verify`/`seal` on the model
+  and only fail at node boot in the ASG. Refusing on the model moves that failure
+  to one line, early. Newer majors still proceed with a warning.
+- **Mutating commands now prompt for confirmation; `clean --yes` is gone.** All
+  four state-changing commands (`install`, `upgrade`, `seal`, `clean`) ask for an
+  interactive `y/N` before doing anything, and there is **no `--yes`/`--force`
+  bypass** — by design. A bypass flag baked into shell history defeats the prompt
+  on an accidental up-arrow re-run (the exact scenario the prompt exists to stop).
+  `--dry-run` skips the prompt (nothing happens); with no terminal the command
+  refuses rather than proceed unattended. `clean`'s old `--yes` requirement is
+  removed. Shared helper: `confirm()` in `lib/common.sh`.
 - **Split `install` into `install` + `upgrade`; both activate by default.**
   `install` is now **greenfield-only** — it establishes a fresh lineage, requires
   `--db-vendor`, and refuses if the model already has an install (pointing you to
@@ -19,10 +34,9 @@ All notable changes to KIB are documented here. Format loosely follows
   `--db-vendor`), so an upgrade structurally *cannot* change the image's baked
   vendor — closing a footgun where `install --db-vendor <wrong>` on an existing
   lineage would silently mis-build the image and only fail at boot. Both commands
-  point `/opt/keycloak/current` at the version by default (the old opt-in
-  `--activate` is gone); `upgrade --stage` is the opt-out that lays a version down
-  without activating/building, for pre-downloading ahead of a maintenance window.
-  `install` and `upgrade` share one internal pipeline (`_install_core`).
+  point `/opt/keycloak/current` at the version automatically (the old opt-in
+  `--activate` is gone). `install` and `upgrade` share one internal pipeline
+  (`_install_core`).
 - **README is now a runbook hub.** Rewrote it around Description · Requirements ·
   Install the toolkit · a Runbooks menu, with self-contained, copy-paste runbooks
   in `docs/runbooks/` (`fresh-install`, `upgrade-install`, `os-patch`,
@@ -55,8 +69,9 @@ All notable changes to KIB are documented here. Format loosely follows
   pristine, ready-to-install state (removes Keycloak, config, state, units, boot
   script, service user, SELinux rules). Keeps the toolkit, OpenJDK (unless
   `--purge-java`), and `~/keycloak-custom-providers`. Idempotent (reports
-  `already clean`), dry-run aware, requires `--yes` for a real run. Mostly for
-  testing; confirm a torn-down state with `kcimage --dry-run clean`.
+  `already clean`), dry-run aware, prompts for confirmation before removing
+  anything. Mostly for testing; confirm a torn-down state with
+  `kcimage --dry-run clean`.
 - Boot node configuration implemented in `boot/configure-node.sh`: IMDSv2 (token
   + private IP) + launch-template user-data (KEY=VALUE, KC_* names), split into
   `keycloak.env` (non-secret) and tmpfs `secrets.env` (0640; DB credentials +

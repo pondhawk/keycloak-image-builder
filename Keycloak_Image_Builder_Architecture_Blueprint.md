@@ -41,7 +41,8 @@ The toolkit is not simply an installer. It is an operational platform.
 Operating System: - RHEL-family 10 (Rocky Linux 10 is the reference target;
 AlmaLinux 10 / RHEL 10 also supported — requires dnf + SELinux)
 
-Keycloak: - 26.x (default baseline; toolkit is version-parameterized)
+Keycloak: - 26.x or newer (hard floor; install/upgrade refuse older majors — the
+baked config is 26-era. Toolkit is version-parameterized within that range.)
 
 Java: - OpenJDK 21 (installed via dnf, managed by alternatives)
 
@@ -254,7 +255,7 @@ cattle). The command surface is deliberately small:
     units + SELinux. Greenfield-only; requires `--db-vendor`.
 -   `upgrade` — move an existing install to a new Keycloak version (ADR-0006
     Phase 1: golden-instance version prep). Reads the DB vendor from the model,
-    so it can't change the image's baked vendor; `--stage` to pre-download.
+    so it can't change the image's baked vendor.
 -   `verify` — offline pre-seal validation (Java, build, config, SELinux, units,
     providers)
 -   `seal` — sanitize the instance for imaging + neutrality gate

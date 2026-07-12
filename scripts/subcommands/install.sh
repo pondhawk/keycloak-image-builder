@@ -25,13 +25,22 @@ EOF
 }
 
 _install_validate_version() {
-  local v="$1"
+  local v="$1" major
   if [[ ! "$v" =~ ^[0-9]+(\.[0-9]+){1,2}$ ]]; then
     log_error "invalid --keycloak-version: '$v' (expected e.g. 26.1.4)"
     return "$EX_USAGE"
   fi
-  if [[ "${v%%.*}" != "$KIB_KEYCLOAK_BASELINE" ]]; then
-    log_warn "requested Keycloak major ${v%%.*} differs from baseline ${KIB_KEYCLOAK_BASELINE}.x"
+  major="${v%%.*}"
+  # Hard floor: the baked config is Keycloak 26-era (jdbc-ping cache stack,
+  # KC_BOOTSTRAP_ADMIN_*, management port). Older majors would pass the model
+  # gates but fail at node boot, so refuse them here.
+  if ((major < KIB_KEYCLOAK_BASELINE)); then
+    log_error "Keycloak $v is not supported: KIB requires ${KIB_KEYCLOAK_BASELINE}.x or newer."
+    log_error "The baked config (jdbc-ping stack, KC_BOOTSTRAP_ADMIN_*) is ${KIB_KEYCLOAK_BASELINE}-era; older servers fail at boot."
+    return "$EX_USAGE"
+  fi
+  if ((major > KIB_KEYCLOAK_BASELINE)); then
+    log_warn "Keycloak major ${major} is newer than the ${KIB_KEYCLOAK_BASELINE}.x baseline (untested); proceeding"
   fi
 }
 
@@ -232,8 +241,8 @@ _install_systemd() {
   log_info "installed systemd units + boot script"
 }
 
-# Switch the 'current' symlink to this version. This is the default behavior;
-# 'upgrade --stage' skips it (and everything downstream that targets 'current').
+# Switch the 'current' symlink to this version. install and upgrade always do
+# this once the distribution is in place.
 _activate_current() {
   local ver="$1"
   run ln -sfn "keycloak-$ver" "$KC_CURRENT"
@@ -272,20 +281,13 @@ _install_guard_greenfield() {
 }
 
 # Shared install/upgrade pipeline. Version + vendor are already resolved by the
-# caller (install takes vendor from --db-vendor; upgrade reads it from the
-# model). stage=1 lays the distribution down without activating/config/build.
+# caller (install takes vendor from --db-vendor; upgrade reads it from the model).
 _install_core() {
-  local kc_version="$1" vendor="$2" java_pkg="$3" etc_dir="$4" providers_dir="$5" stage="$6"
+  local kc_version="$1" vendor="$2" java_pkg="$3" etc_dir="$4" providers_dir="$5"
   _ensure_java "$java_pkg" || return $?
   _ensure_user || return $?
   _ensure_dirs "$etc_dir" || return $?
   _install_keycloak_dist "$kc_version" || return $?
-
-  if [[ "$stage" == "1" ]]; then
-    log_info "staged Keycloak $kc_version at $KC_OPT/keycloak-$kc_version (current unchanged; re-run 'upgrade' without --stage to make it live)"
-    return 0
-  fi
-
   _activate_current "$kc_version" || return $?
   _install_render_conf "$vendor" "$etc_dir" || return $?
   _install_deploy_custom "${providers_dir:-$(kib_user_home)/keycloak-custom-providers}" || return $?
@@ -350,7 +352,8 @@ cmd_install() {
   _install_validate_version "$kc_version" || return "$EX_USAGE"
   _install_check_privileges || return "$EX_CONFIG"
   _install_guard_greenfield "$etc_dir" || return $?
+  confirm "Install Keycloak $kc_version (db=$vendor) on this model instance." || return $?
 
   log_info "installing Keycloak $kc_version (db=$vendor, java=$java_pkg)"
-  _install_core "$kc_version" "$vendor" "$java_pkg" "$etc_dir" "$providers_dir" 0
+  _install_core "$kc_version" "$vendor" "$java_pkg" "$etc_dir" "$providers_dir"
 }

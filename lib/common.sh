@@ -77,3 +77,26 @@ require_cmd() {
   done
   [[ "$missing" == "0" ]] || return "$EX_CONFIG"
 }
+
+# confirm <prompt> — interactive safety gate for mutating commands. There is
+# deliberately NO --yes/--force bypass: a flag baked into shell history would
+# defeat the point, since an accidental up-arrow re-run replays the line verbatim
+# (coding standards / ADR intent). Dry-run skips it (nothing happens). With no
+# terminal to read from, it refuses rather than hang or silently proceed.
+confirm() {
+  local prompt="$1" reply
+  if is_dry_run; then return 0; fi
+  if [[ ! -t 0 ]]; then
+    log_error "refusing to proceed without an interactive confirmation (no terminal); preview with --dry-run"
+    return "$EX_CONFIG"
+  fi
+  printf '%s [y/N] ' "$prompt" >&2
+  read -r reply || reply=""
+  case "$reply" in
+    y | Y | yes | YES | Yes) return 0 ;;
+    *)
+      log_warn "aborted"
+      return "$EX_CONFIG"
+      ;;
+  esac
+}

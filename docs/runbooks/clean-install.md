@@ -37,11 +37,12 @@ kcimage --dry-run clean
 
 ### 2. Clean the instance
 
-`--yes` is required for a real run. (Add `--purge-java` only if you also want
-OpenJDK removed — normally leave it, so the next install is faster.)
+`clean` prompts for confirmation before removing anything (there is no `--yes`
+bypass — that's deliberate). Type `y` when asked. (Add `--purge-java` only if you
+also want OpenJDK removed — normally leave it, so the next install is faster.)
 
 ```bash
-sudo kcimage clean --yes
+sudo kcimage clean
 ```
 
 ### 3. Confirm it's pristine
@@ -83,7 +84,7 @@ The model is freshly installed and sealed.
 
 - **`clean` left something behind** — re-run `kcimage --dry-run clean` to see
   what remains; a stubborn systemd unit usually clears with a
-  `sudo systemctl daemon-reload` and another `sudo kcimage clean --yes`.
+  `sudo systemctl daemon-reload` and another `sudo kcimage clean`.
 - **You want a different DB vendor than before** — `clean` then install with the
   new `--db-vendor`; the vendor is baked at `install` time, so a clean install
   is exactly how you switch it.

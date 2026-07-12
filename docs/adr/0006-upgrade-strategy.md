@@ -46,8 +46,7 @@ ADR-0013, not through this scale-to-0 path.
 Steps 1, 2, and 4 are performed by a single `kcimage upgrade
 --keycloak-version <new>` — it installs side-by-side, reads the DB vendor from
 the existing model (so the vendor can't drift), re-deploys providers, runs
-`kc.sh build`, and switches the `current` symlink. (Use `--stage` to do the
-side-by-side install ahead of the window and defer the switch/build.)
+`kc.sh build`, and switches the `current` symlink.
 
 1. Install the new Keycloak version side-by-side under
    `/opt/keycloak/keycloak-<new>`.

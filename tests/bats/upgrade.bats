@@ -35,12 +35,21 @@ _seed_install() { # <etc-dir> <vendor>
   [[ "$output" == *"invalid --keycloak-version"* ]]
 }
 
-@test "upgrade rejects --db-vendor (vendor comes from the model)" {
+@test "upgrade refuses Keycloak older than the 26 baseline" {
+  local etc="$BATS_TEST_TMPDIR/etc"
+  _seed_install "$etc" mysql
+  run "$KCIMAGE" upgrade --keycloak-version 25.0.6 --etc-dir "$etc"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"not supported"* ]]
+  [[ "$output" == *"26.x or newer"* ]]
+}
+
+@test "upgrade does not accept --db-vendor (rejected as an unknown argument)" {
   local etc="$BATS_TEST_TMPDIR/etc"
   _seed_install "$etc" mysql
   run "$KCIMAGE" upgrade --keycloak-version 26.2.0 --db-vendor postgres --etc-dir "$etc"
   [ "$status" -ne 0 ]
-  [[ "$output" == *"--db-vendor is not accepted"* ]]
+  [[ "$output" == *"unknown argument: --db-vendor"* ]]
 }
 
 @test "upgrade fails when there is no existing install" {
@@ -59,14 +68,4 @@ _seed_install() { # <etc-dir> <vendor>
   [[ "$output" == *"current -> keycloak-26.2.0"* ]]
   [[ "$output" == *"would write $etc/keycloak.conf (db=mysql)"* ]]
   [[ "$output" == *"kc.sh build"* ]]
-}
-
-@test "dry-run upgrade --stage lays the version down but skips activate/build" {
-  local etc="$BATS_TEST_TMPDIR/etc"
-  _seed_install "$etc" postgres
-  run "$KCIMAGE" --dry-run upgrade --keycloak-version 26.2.0 --stage --etc-dir "$etc"
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"staged Keycloak 26.2.0"* ]]
-  [[ "$output" != *"kc.sh build"* ]]
-  [[ "$output" != *"current -> keycloak"* ]]
 }

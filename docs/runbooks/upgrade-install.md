@@ -19,9 +19,9 @@ Use this when: you are changing the **Keycloak version** (e.g. `26.1.4` →
 
 - **`kcimage` is on your `PATH`** ([Install the toolkit](../../README.md#install-the-toolkit)).
 - **Use the model instance that already has the install you're upgrading.**
-  You do **not** pass `--db-vendor` — `upgrade` reads the vendor from the model,
-  so it can never change the image's baked vendor. (A model with no install
-  yet is a [Fresh install](fresh-install.md), not an upgrade.)
+  The DB vendor is inherited from that install, so an upgrade can never change
+  the image's baked vendor. (A model with no install yet is a
+  [Fresh install](fresh-install.md), not an upgrade.)
 - **SELinux Enforcing:**
   ```bash
   getenforce        # must print: Enforcing
@@ -42,18 +42,14 @@ kcimage --dry-run upgrade --keycloak-version 26.2.0
 ### 2. Upgrade to the new version (side-by-side, activated)
 
 The new version installs under `/opt/keycloak/keycloak-<new>` next to the old
-one, and `upgrade` **activates it by default** — switching the
-`/opt/keycloak/current` symlink to it **on this model instance only**. The DB
-vendor, custom providers, and config carry over from the existing install;
-`kc.sh build` runs for the new version.
+one, and `upgrade` **activates it** — switching the `/opt/keycloak/current`
+symlink to it **on this model instance only**. The DB vendor, custom providers,
+and config carry over from the existing install; `kc.sh build` runs for the new
+version.
 
 ```bash
 sudo kcimage upgrade --keycloak-version 26.2.0
 ```
-
-(To pre-download a version during business hours without switching to it, add
-`--stage`, then re-run this same command later without `--stage` to activate and
-build it.)
 
 ### 3. Verify
 
@@ -86,9 +82,6 @@ cutover refuses to proceed without a recent one.
 
 ## Troubleshooting
 
-- **`current` still points at the old version** — you ran `upgrade --stage`,
-  which lays the version down without switching to it. `verify` will report the
-  old version. Re-run the same `upgrade` **without** `--stage` to activate it.
 - **`no existing install found`** — this model has no install to upgrade. Do a
   [Fresh install](fresh-install.md) instead (`install --db-vendor …`).
 - **Provider incompatible with the new version** — `kc.sh build` (inside

@@ -8,13 +8,13 @@
 
 _clean_usage() {
   cat << EOF
-Usage: kcimage clean [--yes] [--purge-java]
+Usage: kcimage clean [--purge-java]
 
 Remove the KIB install (Keycloak, config, state, units, boot script, service
 user, SELinux rules). Keeps the toolkit, OpenJDK, and ~/keycloak-custom-providers.
+Prompts for confirmation before removing anything (no bypass flag by design).
 
 Options:
-  --yes          Required to actually remove (a real run is destructive)
   --purge-java   Also remove OpenJDK (dnf remove); off by default
   -h, --help     Show this help
 
@@ -82,14 +82,10 @@ _clean_java() {
 }
 
 cmd_clean() {
-  local yes=0 purge_java=0
+  local purge_java=0
   local java_pkg="java-${KIB_JAVA_MAJOR}-openjdk-headless"
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --yes)
-        yes=1
-        shift
-        ;;
       --purge-java)
         purge_java=1
         shift
@@ -106,16 +102,11 @@ cmd_clean() {
     esac
   done
 
-  if ! is_dry_run; then
-    if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
-      log_error "clean must run as root"
-      return "$EX_CONFIG"
-    fi
-    if [[ "$yes" != "1" ]]; then
-      log_error "clean is destructive — pass --yes to proceed (or --dry-run to preview)"
-      return "$EX_USAGE"
-    fi
+  if ! is_dry_run && [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+    log_error "clean must run as root"
+    return "$EX_CONFIG"
   fi
+  confirm "This will REMOVE the KIB install (Keycloak, config, state, units, service user, SELinux rules)." || return $?
 
   CLEAN_N=0
   log_info "cleaning KIB install (keeps: toolkit, OpenJDK, ~/keycloak-custom-providers)"
