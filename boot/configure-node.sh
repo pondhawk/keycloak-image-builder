@@ -3,7 +3,7 @@
 # Baked into the AMI; runs once at boot as root, before keycloak.service.
 #
 # Flow (single JSON secret per cluster, ADR-0008):
-#   1. read KDT_SECRET_ID (the cluster secret's name) from launch-template user-data
+#   1. read KIB_SECRET_ID (the cluster secret's name) from launch-template user-data
 #   2. read this node's private IP from IMDSv2
 #   3. fetch the one cluster secret from Secrets Manager (instance IAM role)
 #   4. split it — non-secret fields -> /etc/keycloak/keycloak.env
@@ -13,14 +13,14 @@
 #   - AWS CLI v2 (official bundle; not in the RHEL repos)
 #   - jq (from dnf: `dnf install jq`)
 #
-# Never logs secret values. Test hooks (override to skip IMDS/AWS): KDT_ETC,
-# KDT_RUN, KDT_IMDS_BASE, KDT_SECRET_ID, KDT_SECRET_JSON, NODE_PRIVATE_IP.
+# Never logs secret values. Test hooks (override to skip IMDS/AWS): KIB_ETC,
+# KIB_RUN, KIB_IMDS_BASE, KIB_SECRET_ID, KIB_SECRET_JSON, NODE_PRIVATE_IP.
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ETC="${KDT_ETC:-/etc/keycloak}"
-RUN="${KDT_RUN:-/run/keycloak}"
-IMDS_BASE="${KDT_IMDS_BASE:-http://169.254.169.254}"
+ETC="${KIB_ETC:-/etc/keycloak}"
+RUN="${KIB_RUN:-/run/keycloak}"
+IMDS_BASE="${KIB_IMDS_BASE:-http://169.254.169.254}"
 
 # The env template sits beside this script when installed, or under ../templates
 # when run from the repo/tarball.
@@ -40,18 +40,18 @@ _imds_get() { # <token> <path>
   curl -sf -H "X-aws-ec2-metadata-token: $1" "$IMDS_BASE/latest/$2"
 }
 
-# Extract KDT_SECRET_ID=<value> from user-data (optional 'export', optional quotes).
+# Extract KIB_SECRET_ID=<value> from user-data (optional 'export', optional quotes).
 _secret_id_from_userdata() {
   local line
-  line=$(grep -E '(^|[^[:alnum:]_])KDT_SECRET_ID=' <<< "$1" | tail -1 || true)
-  line=${line#*KDT_SECRET_ID=}
+  line=$(grep -E '(^|[^[:alnum:]_])KIB_SECRET_ID=' <<< "$1" | tail -1 || true)
+  line=${line#*KIB_SECRET_ID=}
   line=${line%%[[:space:]]*}
   line=${line#[\"\']}
   line=${line%[\"\']}
   printf '%s' "$line"
 }
 
-_field() { jq -r --arg k "$1" '.[$k] // ""' <<< "$KDT_SECRET_JSON"; }
+_field() { jq -r --arg k "$1" '.[$k] // ""' <<< "$KIB_SECRET_JSON"; }
 
 _require() {
   [[ -n "$2" ]] || {
@@ -62,7 +62,7 @@ _require() {
 
 # --- gather inputs (env overrides win, so tests can skip IMDS/AWS) ---
 imds_token=""
-if [[ -z "${NODE_PRIVATE_IP:-}" || -z "${KDT_SECRET_JSON:-}" ]]; then
+if [[ -z "${NODE_PRIVATE_IP:-}" || -z "${KIB_SECRET_JSON:-}" ]]; then
   imds_token=$(curl -sf -X PUT "$IMDS_BASE/latest/api/token" \
     -H "X-aws-ec2-metadata-token-ttl-seconds: 300") || {
     echo "keycloak-config: IMDSv2 token request failed" >&2
@@ -78,13 +78,13 @@ if [[ -z "${NODE_PRIVATE_IP:-}" ]]; then
 fi
 export NODE_PRIVATE_IP
 
-if [[ -z "${KDT_SECRET_JSON:-}" ]]; then
-  if [[ -z "${KDT_SECRET_ID:-}" ]]; then
+if [[ -z "${KIB_SECRET_JSON:-}" ]]; then
+  if [[ -z "${KIB_SECRET_ID:-}" ]]; then
     user_data=$(_imds_get "$imds_token" user-data || true)
-    KDT_SECRET_ID=$(_secret_id_from_userdata "$user_data")
+    KIB_SECRET_ID=$(_secret_id_from_userdata "$user_data")
   fi
-  [[ -n "${KDT_SECRET_ID:-}" ]] || {
-    echo "keycloak-config: KDT_SECRET_ID not found in env or user-data" >&2
+  [[ -n "${KIB_SECRET_ID:-}" ]] || {
+    echo "keycloak-config: KIB_SECRET_ID not found in env or user-data" >&2
     exit 1
   }
   if [[ -z "${AWS_DEFAULT_REGION:-}" ]]; then
@@ -94,7 +94,7 @@ if [[ -z "${KDT_SECRET_JSON:-}" ]]; then
     }
     export AWS_DEFAULT_REGION
   fi
-  KDT_SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "$KDT_SECRET_ID" \
+  KIB_SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "$KIB_SECRET_ID" \
     --query SecretString --output text) || {
     echo "keycloak-config: secretsmanager get-secret-value failed" >&2
     exit 1

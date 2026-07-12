@@ -1,18 +1,18 @@
-# Keycloak Deployment Toolkit
+# Keycloak Image Builder
 
 ## Enterprise Architecture Blueprint
 
 ### Version 1.0
 
 > This document is the authoritative specification for implementing the
-> Keycloak Deployment Toolkit (KDT). It is intended for use by Claude
+> Keycloak Image Builder (KIB). It is intended for use by Claude
 > Code as the sole architectural reference for the project.
 
 ------------------------------------------------------------------------
 
 # 1. Executive Summary
 
-The Keycloak Deployment Toolkit (KDT) is an enterprise-grade deployment
+The Keycloak Image Builder (KIB) is an enterprise-grade deployment
 and lifecycle management framework for Keycloak running on AWS.
 
 The toolkit is designed to create repeatable, supportable,
@@ -84,7 +84,7 @@ Deployment Model: - Multi-node Keycloak cluster
 # 5. Repository Layout
 
 ``` text
-keycloak-admin-tool/
+keycloak-image-builder/
 ├── .claude/
 │   ├── CLAUDE.md
 │   ├── coding-standards.md
@@ -230,7 +230,7 @@ Golden-instance version prep (not production):
 -   Switch the `current` symlink after validation.
 -   Preserve previous installation.
 -   Used only on the golden instance to prepare, test, and validate a
-    version before baking the AMI. `kcadmin upgrade` / `rollback` operate
+    version before baking the AMI. `kcimage upgrade` / `rollback` operate
     here, not on live ASG nodes.
 
 Database rollback is never automatic.
@@ -244,7 +244,7 @@ snapshot.
 
 Provide a single administration command:
 
-kcadmin
+kcimage
 
 Minimum commands:
 
@@ -264,7 +264,7 @@ Minimum commands:
 -   cluster
 -   upgrade
 -   rollback
--   ami-clean
+-   seal
 
 ------------------------------------------------------------------------
 
@@ -331,7 +331,7 @@ The AMI never contains:
 
 Provide:
 
-kcadmin ami-clean
+kcimage seal
 
 to sanitize an instance before imaging.
 

@@ -1,6 +1,6 @@
-# KDT SELinux file-context rules (ADR-0011).
+# KIB SELinux file-context rules (ADR-0011).
 # Format: <path-regex>  <SELinux type>
-# Applied by: kcadmin selinux apply  (semanage fcontext -a … ; restorecon -R)
+# Applied by: kcimage selinux apply  (semanage fcontext -a … ; restorecon -R)
 # Types are indicative and validated on Rocky Linux 10 during implementation.
 
 /opt/keycloak(/.*)?              usr_t

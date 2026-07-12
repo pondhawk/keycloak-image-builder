@@ -7,7 +7,7 @@
 
 ## Context
 
-The immediate driver for KDT is moving and upgrading an existing production
+The immediate driver for KIB is moving and upgrading an existing production
 Keycloak whose state lives in **Amazon RDS for MySQL**. That instance stays on
 MySQL for the foreseeable future — no engine conversion is bundled with the
 upgrade (the owner has already validated the data migration by hand). At the
@@ -22,9 +22,9 @@ first-class while pointing new deployments at the stronger long-term default,
 Two facts from earlier ADRs constrain this:
 
 - The database vendor is a Keycloak **build-time** option (`--db`), so it is
-  baked into the AMI and is the *sole* reason KDT produces per-vendor AMIs
+  baked into the AMI and is the *sole* reason KIB produces per-vendor AMIs
   (ADR-0002, ADR-0004).
-- KDT **never creates databases** and begins at an already-provisioned,
+- KIB **never creates databases** and begins at an already-provisioned,
   already-populated RDS instance (project scope). It consumes connection
   details; it does not own schema creation or data loading.
 
@@ -59,7 +59,7 @@ enumerated set of branch points, each isolated behind `db.vendor`:
 
 ¹ Verified against the Keycloak 26.x documentation (2026-07-11): database
 drivers ship with Keycloak for all supported engines **except Oracle** (which
-KDT does not support). No per-vendor driver-provisioning step is required, so
+KIB does not support). No per-vendor driver-provisioning step is required, so
 this is not in fact a fork point — recorded here to close the question.
 
 Everything else — directory layout, config hierarchy, systemd, SELinux,
@@ -72,7 +72,7 @@ Keycloak 26.x supports both engines. Exact tested version floors (e.g. MySQL
 8.x, a recent PostgreSQL major) are pinned during implementation against the
 26.x supported-database matrix and the owner's actual RDS versions. MySQL
 schemas must use `utf8mb4`; validation enforces this rather than assuming it,
-since KDT consumes a pre-existing database. Additionally, **MySQL 8.0.30+ must
+since KIB consumes a pre-existing database. Additionally, **MySQL 8.0.30+ must
 have `sql_generate_invisible_primary_key` disabled** (an RDS parameter-group
 setting) or Keycloak schema initialization and Liquibase upgrade migrations
 fail; validation checks this too (verified against the 26.x docs, 2026-07-11).
@@ -81,7 +81,7 @@ fail; validation checks this too (verified against the 26.x docs, 2026-07-11).
 
 - Creating databases, schemas, users, or loading data.
 - MySQL → PostgreSQL conversion. A future, separate effort could add a
-  `kcadmin migrate-db` command (realm export/import based); it is **not** part
+  `kcimage migrate-db` command (realm export/import based); it is **not** part
   of this strategy or the current move/upgrade.
 
 ## Consequences
@@ -107,7 +107,7 @@ fail; validation checks this too (verified against the 26.x docs, 2026-07-11).
 - MySQL carries known sharp edges Postgres does not (charset/collation,
   possible manual driver provisioning, less-exercised JDBC_PING2 locking);
   these must be actively tested rather than assumed.
-- Requiring `utf8mb4` on a database KDT does not own means validation can only
+- Requiring `utf8mb4` on a database KIB does not own means validation can only
   *detect and refuse*, not fix — a misconfigured source DB blocks bring-up.
 
 ### Notes

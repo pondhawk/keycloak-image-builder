@@ -1,10 +1,10 @@
-# CLAUDE.md — Keycloak Deployment Toolkit (KDT)
+# CLAUDE.md — Keycloak Image Builder (KIB)
 
 Guidance for working in this repository.
 
 ## What this is
 
-KDT is a **Bash CLI toolkit (`kcadmin`)** that installs, configures, validates,
+KIB is a **Bash CLI toolkit (`kcimage`)** that installs, configures, validates,
 and lifecycle-manages **Keycloak 26.x** on **RHEL-family 10 (Rocky/Alma/RHEL) / systemd / SELinux
 Enforcing**, integrated with **AWS**. It builds an environment-neutral **golden
 AMI** consumed by an **Auto Scaling Group**. It is orchestration glue — not a
@@ -12,7 +12,7 @@ service or a compiled app.
 
 ## Authority
 
-- The **blueprint** (`Keycloak_Deployment_Toolkit_Architecture_Blueprint.md`) is
+- The **blueprint** (`Keycloak_Image_Builder_Architecture_Blueprint.md`) is
   the top-level spec.
 - The **ADRs** (`docs/adr/`) record all architectural decisions and **win on
   specifics**. Read them before changing behavior. All 12 are Accepted.
@@ -22,7 +22,7 @@ service or a compiled app.
 ## Key decisions (see ADRs)
 
 - Two DB engines, Postgres default + MySQL co-equal in tests (ADR-0003).
-- Golden instance → `ami-clean` → per-vendor AMI → ASG self-configures at boot
+- Golden instance → `seal` → per-vendor AMI → ASG self-configures at boot
   (ADR-0004, ADR-0005).
 - Config split: neutral `keycloak.conf` baked; `keycloak.env` + secrets at boot
   (ADR-0002). Secrets from AWS Secrets Manager via tmpfs (ADR-0008).
@@ -45,7 +45,7 @@ service or a compiled app.
 - `make test` — Bats.
 - `make package` — build the release tarball.
 
-There is no `make install`. On the model instance you run `./scripts/kcadmin`
-straight from the extracted tarball; `kcadmin install` bakes the runtime (Java,
+There is no `make install`. On the model instance you run `./scripts/kcimage`
+straight from the extracted tarball; `kcimage install` bakes the runtime (Java,
 distribution, config, `kc.sh build`, systemd units + boot script, SELinux).
 `make` is not needed on the model instance.

@@ -1,9 +1,9 @@
-# KDT Makefile — developer tooling only (lint / test / package).
-# There is NO 'install' target: the model instance runs `kcadmin` straight from
-# the extracted tarball, and `kcadmin install` bakes the runtime (units, boot
-# script, config, build, SELinux). `make` is not needed on the model instance.
+# KIB Makefile — developer tooling only (lint / test / package).
+# `make` is dev-only (lint / test / package). On the model instance you run
+# `sudo ./bootstrap.sh` to put kcimage on PATH; `kcimage install` then bakes the
+# Keycloak runtime. `make` is not needed on the model instance.
 VERSION := $(shell cat VERSION)
-SH_FILES := scripts/kcadmin $(wildcard lib/*.sh) $(wildcard scripts/subcommands/*.sh) $(wildcard boot/*.sh)
+SH_FILES := scripts/kcimage bootstrap.sh $(wildcard lib/*.sh) $(wildcard scripts/subcommands/*.sh) $(wildcard boot/*.sh)
 
 .PHONY: help
 help: ## Show this help
@@ -25,12 +25,12 @@ test: ## Run Bats tests
 
 .PHONY: package
 package: ## Build the release tarball
-	@tar czf kcadmin-$(VERSION).tar.gz \
-		--transform 's,^,kcadmin-$(VERSION)/,' \
-		scripts lib boot systemd selinux templates VERSION README.md
-	@sha256sum kcadmin-$(VERSION).tar.gz > kcadmin-$(VERSION).tar.gz.sha256
-	@echo "built kcadmin-$(VERSION).tar.gz"
+	@tar czf kcimage-$(VERSION).tar.gz \
+		--transform 's,^,kcimage-$(VERSION)/,' \
+		scripts lib boot systemd selinux templates bootstrap.sh VERSION README.md
+	@sha256sum kcimage-$(VERSION).tar.gz > kcimage-$(VERSION).tar.gz.sha256
+	@echo "built kcimage-$(VERSION).tar.gz"
 
 .PHONY: clean
 clean: ## Remove build artifacts
-	rm -f kcadmin-*.tar.gz kcadmin-*.tar.gz.sha256
+	rm -f kcimage-*.tar.gz kcimage-*.tar.gz.sha256

@@ -3,17 +3,17 @@
 
 setup() {
   REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
-  KCADMIN="$REPO_ROOT/scripts/kcadmin"
+  KCIMAGE="$REPO_ROOT/scripts/kcimage"
 }
 
 @test "verify --help exits 0" {
-  run "$KCADMIN" verify --help
+  run "$KCIMAGE" verify --help
   [ "$status" -eq 0 ]
-  [[ "$output" == *"Validate that KDT provisioned"* ]]
+  [[ "$output" == *"Validate that KIB provisioned"* ]]
 }
 
 @test "verify reports all items and a summary" {
-  run "$KCADMIN" verify
+  run "$KCIMAGE" verify
   [[ "$output" == *"Java"* ]]
   [[ "$output" == *"install"* ]]
   [[ "$output" == *"config"* ]]
@@ -26,7 +26,7 @@ setup() {
   local etc="$BATS_TEST_TMPDIR/etc"
   mkdir -p "$etc"
   printf 'db=mysql\n' > "$etc/keycloak.conf"
-  run "$KCADMIN" verify --etc-dir "$etc"
+  run "$KCIMAGE" verify --etc-dir "$etc"
   [[ "$output" == *"[PASS] config"* ]]
 }
 
@@ -34,7 +34,7 @@ setup() {
   local sd="$BATS_TEST_TMPDIR/sd"
   mkdir -p "$sd"
   touch "$sd/keycloak.service" "$sd/keycloak-config.service"
-  run "$KCADMIN" verify --systemd-dir "$sd"
+  run "$KCIMAGE" verify --systemd-dir "$sd"
   [[ "$output" == *"[PASS] units"* ]]
 }
 
@@ -43,7 +43,7 @@ setup() {
   mkdir -p "$custom/providers" "$home/providers"
   echo x > "$custom/providers/foo.jar"
   echo x > "$home/providers/foo.jar"
-  run "$KCADMIN" verify --custom-dir "$custom" --home "$home"
+  run "$KCIMAGE" verify --custom-dir "$custom" --home "$home"
   [[ "$output" == *"[PASS] providers"* ]]
 }
 
@@ -51,7 +51,7 @@ setup() {
   local custom="$BATS_TEST_TMPDIR/custom" home="$BATS_TEST_TMPDIR/home"
   mkdir -p "$custom/providers" "$home/providers"
   echo x > "$custom/providers/foo.jar"   # never copied to the install
-  run "$KCADMIN" verify --custom-dir "$custom" --home "$home"
+  run "$KCIMAGE" verify --custom-dir "$custom" --home "$home"
   [[ "$output" == *"[FAIL] providers"* ]]
   [[ "$output" == *"foo.jar"* ]]
 }
@@ -59,6 +59,6 @@ setup() {
 @test "verify skips providers when there are no custom providers" {
   local custom="$BATS_TEST_TMPDIR/custom"
   mkdir -p "$custom/providers"
-  run "$KCADMIN" verify --custom-dir "$custom"
+  run "$KCIMAGE" verify --custom-dir "$custom"
   [[ "$output" == *"[SKIP] providers"* ]]
 }

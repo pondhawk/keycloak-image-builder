@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # subcommand: verify — golden-image / node validation (ADR-0012 pre-clean gate).
-# Confirms KDT did its job (install/config/SELinux/units); it does NOT test
-# Keycloak's own behaviour. Runtime health lives in `kcadmin health`.
+# Confirms KIB did its job (install/config/SELinux/units); it does NOT test
+# Keycloak's own behaviour. Runtime health lives in `kcimage health`.
 # shellcheck shell=bash
 
 _verify_usage() {
   cat << EOF
-Usage: kcadmin verify [--etc-dir <dir>] [--systemd-dir <dir>] [--home <dir>]
+Usage: kcimage verify [--etc-dir <dir>] [--systemd-dir <dir>] [--home <dir>]
 
-Validate that KDT provisioned this node correctly: Java, install, rendered
+Validate that KIB provisioned this node correctly: Java, install, rendered
 config, SELinux Enforcing, and systemd units.
 
   --etc-dir <dir>      Config dir (default: /etc/keycloak)
@@ -42,10 +42,10 @@ _verify_custom_providers() {
 
 _verify_java() {
   if command -v java > /dev/null 2>&1 &&
-    java -version 2>&1 | grep -qE "version \"${KDT_JAVA_MAJOR}([.\"]|$)"; then
-    validate_item PASS Java "OpenJDK ${KDT_JAVA_MAJOR}"
+    java -version 2>&1 | grep -qE "version \"${KIB_JAVA_MAJOR}([.\"]|$)"; then
+    validate_item PASS Java "OpenJDK ${KIB_JAVA_MAJOR}"
   else
-    validate_item FAIL Java "OpenJDK ${KDT_JAVA_MAJOR} not found"
+    validate_item FAIL Java "OpenJDK ${KIB_JAVA_MAJOR} not found"
   fi
 }
 
@@ -59,7 +59,7 @@ _verify_install() {
   if [[ -e "$home/lib/quarkus" ]]; then
     validate_item PASS build "augmented server present"
   else
-    validate_item FAIL build "server not built (run: kcadmin build)"
+    validate_item FAIL build "server not built (run: kcimage build)"
   fi
 }
 
@@ -68,7 +68,7 @@ _verify_config() {
   if [[ -f "$etc_dir/keycloak.conf" ]] && grep -qE '^db=' "$etc_dir/keycloak.conf"; then
     validate_item PASS config "$etc_dir/keycloak.conf rendered"
   else
-    validate_item FAIL config "keycloak.conf missing or has no db= (run: kcadmin configure)"
+    validate_item FAIL config "keycloak.conf missing or has no db= (run: kcimage configure)"
   fi
 }
 

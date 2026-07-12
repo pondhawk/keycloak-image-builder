@@ -59,7 +59,7 @@ keycloak.service             # kc.sh start --optimized
   `Requires=keycloak-config.service`; if boot config fails, the server does not
   start (fail safe — blueprint principle 5).
 - Both order `After=network-online.target` (RDS + Secrets Manager need network).
-- Both are **enabled but not started** in the AMI (`ami-clean` stops them); the
+- Both are **enabled but not started** in the AMI (`seal` stops them); the
   ASG instance starts them at boot.
 
 ### Service user and file access
@@ -90,7 +90,7 @@ safe.
 ### Readiness, restart, and health
 
 - Unit "started" ≠ "ready." Readiness is the `/health/ready` endpoint, polled by
-  the ALB target group and by `kcadmin status`/`health`.
+  the ALB target group and by `kcimage status`/`health`.
 - `Restart=on-failure` with `RestartSec` and a start-limit, for transient
   faults. A persistently unhealthy node fails its ALB check and is replaced by
   the ASG — systemd restarts are not the recovery path for hard failures.
@@ -113,7 +113,7 @@ primary control.
 
 ### Packaging
 
-- Base units live in the repo `systemd/`; `kcadmin install` places them, runs
+- Base units live in the repo `systemd/`; `kcimage install` places them, runs
   `systemctl daemon-reload`, and enables both.
 - Environment-specific tuning uses **drop-ins**
   (`/etc/systemd/system/keycloak.service.d/`), never edits to the base unit.
@@ -128,7 +128,7 @@ primary control.
   structural guarantee, not a script convention.
 - Ephemeral-instance reality (render env every boot) is handled without baking
   anything environment-specific into the AMI.
-- Readiness via the health endpoint aligns systemd, the ALB, and `kcadmin`
+- Readiness via the health endpoint aligns systemd, the ALB, and `kcimage`
   on one definition of "ready."
 
 ### Negative / Trade-offs
@@ -148,5 +148,5 @@ primary control.
 - Secret retrieval mechanism and IAM → ADR-0008.
 - Logging format/rotation → ADR-0010.
 - SELinux contexts for units and paths, and sandboxing co-validation → ADR-0011.
-- `kcadmin` subcommands (`start`/`stop`/`status`/`logs`/`journal`/`health`)
+- `kcimage` subcommands (`start`/`stop`/`status`/`logs`/`journal`/`health`)
   wrap these units.

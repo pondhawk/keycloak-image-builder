@@ -8,14 +8,14 @@
 
 _install_usage() {
   cat << EOF
-Usage: kcadmin install --keycloak-version <ver> --db-vendor <postgres|mysql> [options]
+Usage: kcimage install --keycloak-version <ver> --db-vendor <postgres|mysql> [options]
 
 Install or update Keycloak on the model instance and prepare it for imaging.
 
 Options:
   --keycloak-version <ver>   Keycloak version, e.g. 26.1.4 (required)
   --db-vendor <v>            postgres | mysql (required; baked into the AMI)
-  --java-package <pkg>       OpenJDK package (default: java-${KDT_JAVA_MAJOR}-openjdk-headless)
+  --java-package <pkg>       OpenJDK package (default: java-${KIB_JAVA_MAJOR}-openjdk-headless)
   --etc-dir <dir>            Config dir (default: /etc/keycloak)
   --activate                 Point /opt/keycloak/current at this version
   -h, --help                 Show this help
@@ -28,8 +28,8 @@ _install_validate_version() {
     log_error "invalid --keycloak-version: '$v' (expected e.g. 26.1.4)"
     return "$EX_USAGE"
   fi
-  if [[ "${v%%.*}" != "$KDT_KEYCLOAK_BASELINE" ]]; then
-    log_warn "requested Keycloak major ${v%%.*} differs from baseline ${KDT_KEYCLOAK_BASELINE}.x"
+  if [[ "${v%%.*}" != "$KIB_KEYCLOAK_BASELINE" ]]; then
+    log_warn "requested Keycloak major ${v%%.*} differs from baseline ${KIB_KEYCLOAK_BASELINE}.x"
   fi
 }
 
@@ -48,8 +48,8 @@ _install_check_privileges() {
 _ensure_java() {
   local pkg="$1"
   if command -v java > /dev/null 2>&1 &&
-    java -version 2>&1 | grep -qE "version \"${KDT_JAVA_MAJOR}([.\"]|$)"; then
-    log_info "OpenJDK ${KDT_JAVA_MAJOR} already present"
+    java -version 2>&1 | grep -qE "version \"${KIB_JAVA_MAJOR}([.\"]|$)"; then
+    log_info "OpenJDK ${KIB_JAVA_MAJOR} already present"
     return 0
   fi
   if is_dry_run; then
@@ -120,7 +120,7 @@ _install_keycloak_dist() {
 # _install_share_dir <name> — echo the resolved repo/tarball or installed dir.
 _install_share_dir() {
   local name="$1" d
-  for d in "$KCADMIN_BIN_DIR/../$name" "$KCADMIN_LIB_DIR/../$name"; do
+  for d in "$KCIMAGE_BIN_DIR/../$name" "$KCIMAGE_LIB_DIR/../$name"; do
     if [[ -d "$d" ]]; then
       readlink -f "$d"
       return 0
@@ -183,7 +183,7 @@ _install_build() {
   run env KC_CONFIG_FILE="$etc_dir/keycloak.conf" "$kcsh" build
 }
 
-# Apply SELinux file contexts for KDT paths (ADR-0011); skip if SELinux is off.
+# Apply SELinux file contexts for KIB paths (ADR-0011); skip if SELinux is off.
 _install_selinux() {
   if ! selinux_available; then
     log_warn "SELinux not enabled; skipping context setup (Enforcing required in production — ADR-0011)"
@@ -248,7 +248,7 @@ _maybe_set_current() {
 
 cmd_install() {
   local kc_version="" vendor="" etc_dir="$KC_ETC" activate=0
-  local java_pkg="java-${KDT_JAVA_MAJOR}-openjdk-headless"
+  local java_pkg="java-${KIB_JAVA_MAJOR}-openjdk-headless"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --keycloak-version)
@@ -312,5 +312,5 @@ cmd_install() {
   _install_build "$etc_dir" || return $?
   _install_systemd || return $?
   _install_selinux || return $?
-  log_info "install complete: $KC_OPT/keycloak-$kc_version (ready to verify + ami-clean)"
+  log_info "install complete: $KC_OPT/keycloak-$kc_version (ready to verify + seal)"
 }

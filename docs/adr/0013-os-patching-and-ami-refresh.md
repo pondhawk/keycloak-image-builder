@@ -33,7 +33,7 @@ configuration drift.
 
 ### 2. The bake applies OS updates (refines ADR-0004)
 
-The golden-instance bake runs a **full `dnf -y update`** before `ami-clean` and
+The golden-instance bake runs a **full `dnf -y update`** before `seal` and
 imaging, so every AMI is fully patched at build time. The `build-date` AMI tag
 (ADR-0004) distinguishes a patch-only AMI from its predecessor at the same
 Keycloak version.
@@ -46,7 +46,7 @@ Keycloak version.
 | **Keycloak version change** (schema may migrate) | scale-to-0 cutover (ADR-0006) | planned window |
 
 The distinguishing test is purely the AMI's **Keycloak-version tag** vs. the
-running one — no compatibility gating. **`kcadmin` treats this comparison as the
+running one — no compatibility gating. **`kcimage` treats this comparison as the
 authoritative gate and refuses a rolling refresh when the Keycloak version tag
 differs** (that case must use ADR-0006).
 
@@ -96,7 +96,7 @@ runbook).
 - **Mislabel risk:** rolling is only safe if the AMI truly is same-Keycloak-
   version. Rolling a version-changing AMI as "OS-only" would reintroduce exactly
   the mixed-version schema risk ADR-0006 avoids. Mitigated by making the
-  Keycloak-version-tag comparison the authoritative, `kcadmin`-enforced gate.
+  Keycloak-version-tag comparison the authoritative, `kcimage`-enforced gate.
 - Frequent rebakes increase AMI churn; retention/cleanup (ADR-0004) must keep up.
 
 ### Notes

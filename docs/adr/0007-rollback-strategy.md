@@ -63,7 +63,7 @@ database must go back too:
 
 ### Determining the type (conservative default)
 
-`kcadmin` decides A vs B by checking whether the upgrade applied Liquibase
+`kcimage` decides A vs B by checking whether the upgrade applied Liquibase
 changesets (new rows in Keycloak's `DATABASECHANGELOG`, or the known-migration
 set for the version delta). **Default is conservative: treat any Keycloak
 version change as schema-migrating (Type B) unless proven otherwise.** Only
@@ -74,14 +74,14 @@ same-version changes default to Type A.
 Because Type B loses post-snapshot writes, rollback is only *clean* while little
 or no write traffic has occurred — i.e. **during the maintenance window or
 immediately after**, before the new version serves meaningful production writes.
-Past that point, KDT's guidance is to **forward-fix** (patch → new AMI → normal
+Past that point, KIB's guidance is to **forward-fix** (patch → new AMI → normal
 upgrade) rather than roll back, because a snapshot restore would throw away real
 production data. This guidance is documented, not enforced — the operator owns
 the call.
 
 ### What is automated vs. manual
 
-- **`kcadmin` automates / verifies:** classifying A vs B; confirming the
+- **`kcimage` automates / verifies:** classifying A vs B; confirming the
   previous AMI and the pre-upgrade snapshot exist (pre-flight); driving the
   scale-to-0 → revert-template → scale-1 → smoke → scale-out sequence; the
   post-rollback smoke test.

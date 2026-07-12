@@ -7,7 +7,7 @@
 
 ## Context
 
-KDT builds a golden model instance that is imaged into an AMI and consumed by
+KIB builds a golden model instance that is imaged into an AMI and consumed by
 an AWS Auto Scaling Group. Three earlier decisions shape this ADR:
 
 - **Build at bake (Option A).** `kc.sh build` runs during image preparation,
@@ -25,7 +25,7 @@ with `kc.sh start --optimized` to skip re-augmentation. This is what makes
 build-at-bake worthwhile — the boot path does no build work.
 
 The blueprint (§15) already lists what the AMI must and must not contain and
-mandates `kcadmin ami-clean`. This ADR pins the build sequence, the two-AMI
+mandates `kcimage seal`. This ADR pins the build sequence, the two-AMI
 lineage, the exact neutrality contract, and how AMIs are tagged and retained so
 the immutable upgrade/rollback model (ADR-0006/0007) can rely on them.
 
@@ -33,7 +33,7 @@ the immutable upgrade/rollback model (ADR-0006/0007) can rely on them.
 
 ### 1. Build happens on the golden instance, once per vendor
 
-The bake sequence, driven by `kcadmin` on the golden instance:
+The bake sequence, driven by `kcimage` on the golden instance:
 
 1. `install` — lay down Java, the Keycloak version, scripts, units, policy.
 2. `configure` — render the **neutral** `keycloak.conf` (build-time options,
@@ -43,13 +43,13 @@ The bake sequence, driven by `kcadmin` on the golden instance:
    optimized server.
 5. `verify` — validate the built server (§12 checks that do not require a live
    environment: Java, build success, SELinux contexts, unit files).
-6. `ami-clean` — sanitize to the neutral contract (below).
+6. `seal` — sanitize to the neutral contract (below).
 7. image — create the AMI **manually in the AWS Console** (select the golden
    instance → Actions → Image and templates → Create image) from the sanitized
    instance.
 
 OS patching: the bake also applies a full `dnf -y update` on the model instance
-before step 6 (`ami-clean`), so every AMI is fully patched at build time
+before step 6 (`seal`), so every AMI is fully patched at build time
 (ADR-0013).
 
 ### 2. Two AMI lineages, one codebase
@@ -63,13 +63,13 @@ differing only in `db.vendor`:
 Both share the ADR-0001 directory layout. If a deployment only needs MySQL,
 only the MySQL AMI need be baked — but CI still exercises both (ADR-0003).
 
-### 3. Neutrality contract (what `ami-clean` guarantees)
+### 3. Neutrality contract (what `seal` guarantees)
 
 **The AMI contains:** OpenJDK 21; Keycloak install(s) under `/opt/keycloak`
-with the `current` symlink; the built/optimized server; `kcadmin` + scripts;
+with the `current` symlink; the built/optimized server; `kcimage` + scripts;
 systemd units; SELinux policy; templates; docs; the neutral `keycloak.conf`.
 
-**The AMI never contains, and `ami-clean` removes/resets:**
+**The AMI never contains, and `seal` removes/resets:**
 
 | Removed / reset | Why |
 |---|---|
@@ -85,7 +85,7 @@ systemd units; SELinux policy; templates; docs; the neutral `keycloak.conf`.
 | cloud-init instance state/logs, shell history, `/tmp` | prevent identity/secret bleed |
 | non-`current` Keycloak installs under `/opt/keycloak` | keep only the active version; rollback is via the previous AMI, so old installs are pure bloat (matters when the model is reused for OS patching, ADR-0013) |
 
-`ami-clean` is **idempotent** and ends with a **neutrality gate**: it scans for
+`seal` is **idempotent** and ends with a **neutrality gate**: it scans for
 any residual secret or environment-specific value and **fails the bake** if one
 is found. A leaked secret in a published AMI is the highest-severity failure
 this toolkit can produce, so the gate is mandatory, not advisory.
@@ -125,7 +125,7 @@ when no longer needed. No automated prune is required at this scale.
 ### Negative / Trade-offs
 
 - Two AMIs per release to build, test, publish, and lifecycle, in lockstep.
-- `ami-clean` correctness is security-critical; its neutrality gate must be
+- `seal` correctness is security-critical; its neutrality gate must be
   thoroughly tested (a false "clean" leaks secrets, a false "dirty" blocks
   releases). This is the single most important test target in the AMI path.
 - AMI/snapshot sprawl has real storage cost; old images are cleaned up by hand,
@@ -136,8 +136,8 @@ when no longer needed. No automated prune is required at this scale.
 
 ### Notes
 
-- Imaging is performed manually in the AWS Console; KDT owns only the
-  on-instance contract (install→configure→build→verify→ami-clean).
+- Imaging is performed manually in the AWS Console; KIB owns only the
+  on-instance contract (install→configure→build→verify→seal).
 - `--optimized` start wiring and unit ordering → ADR-0005.
 - Rollback-by-AMI-tag → ADR-0007; instance-refresh upgrade → ADR-0006.
 - SELinux relabel/verify during bake → ADR-0011.

@@ -7,7 +7,7 @@
 
 ## Context
 
-The Keycloak Deployment Toolkit (KDT) builds an environment-neutral *golden
+The Keycloak Image Builder (KIB) builds an environment-neutral *golden
 model instance* that is imaged into an AMI and consumed by an AWS Auto
 Scaling Group (ASG). Two distinct directory structures must be pinned before
 any code is written, because nearly every later ADR (configuration, AMI/build,
@@ -47,7 +47,7 @@ We adopt canonical, role-separated directory structures.
 Version-controlled under the project root (per blueprint §5):
 
 ```text
-keycloak-admin-tool/
+keycloak-image-builder/
 ├── .claude/                 # CLAUDE.md, coding-standards, architecture, project-rules
 ├── docs/
 │   ├── adr/                 # this record and its siblings
@@ -55,7 +55,7 @@ keycloak-admin-tool/
 │   ├── operations/
 │   ├── troubleshooting/
 │   └── images/
-├── scripts/                 # kcadmin and supporting scripts
+├── scripts/                 # kcimage and supporting scripts
 ├── systemd/                 # unit + drop-in templates
 ├── selinux/                 # policy modules / fcontext definitions
 ├── templates/               # keycloak.conf / keycloak.env / bootstrap.env templates
@@ -99,7 +99,7 @@ Three roles, each in its own tree so none can be mistaken for another:
 ### Rules
 
 - **Java** is a dnf-managed OpenJDK 21 under `/usr/lib/jvm`, selected via
-  `alternatives`. KDT does not vendor a JDK under `/usr/java`.
+  `alternatives`. KIB does not vendor a JDK under `/usr/java`.
 - **Role A** (`/opt/keycloak/`) holds only Keycloak installations and the
   `current` symlink. The `current` symlink is the single mutable pointer, and
   it is swapped **only on the golden instance** during version preparation.
@@ -108,7 +108,7 @@ Three roles, each in its own tree so none can be mistaken for another:
   copied into `/opt/keycloak/current` before `kc.sh build`.
 - **Role C** (`/var/lib`, `/var/log`, `/var/backups`) holds mutable runtime
   state and is excluded from the AMI's environment-neutral guarantee (sanitized
-  by `kcadmin ami-clean`).
+  by `kcimage seal`).
 - **Config** lives in `/etc/keycloak`. `keycloak.conf` carries build-time /
   platform-neutral options (baked into the AMI); `keycloak.env` carries
   runtime / environment-specific values (injected at boot). `bootstrap.env` is

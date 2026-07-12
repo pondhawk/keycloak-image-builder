@@ -17,8 +17,8 @@ readonly EX_CONFIG=78        # configuration error
 readonly EX_UNIMPLEMENTED=69 # planned but not yet implemented
 
 # --- Baseline versions (ADR-0003/0004) ---
-readonly KDT_KEYCLOAK_BASELINE="26"
-readonly KDT_JAVA_MAJOR="21"
+readonly KIB_KEYCLOAK_BASELINE="26"
+readonly KIB_JAVA_MAJOR="21"
 
 # --- Filesystem layout (ADR-0001) ---
 readonly KC_OPT="/opt/keycloak"

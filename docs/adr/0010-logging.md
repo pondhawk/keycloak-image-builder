@@ -43,7 +43,7 @@ enabled, for cleaner field mapping. (Exact option names pinned at implementation
 ### On-node: console → journald (always)
 
 stdout/stderr is captured by **journald** (`journalctl -u keycloak`), per
-ADR-0005. `kcadmin logs` / `kcadmin journal` wrap `journalctl` and offer a
+ADR-0005. `kcimage logs` / `kcimage journal` wrap `journalctl` and offer a
 pretty-printed view of the JSON for humans. **No file appender / no logrotate** —
 console-only keeps the on-node path simple and avoids managing rotating files.
 
@@ -65,10 +65,10 @@ cloud sink, and the CloudWatch unified agent only tails *files*, not journald �
 which is why a journald-native shipper is used.)
 
 - **Opt-in.** Disabled by default; enabling it starts the Fluent Bit unit. With
-  it off, the on-node journald path still serves `kcadmin logs`.
-- KDT ships the Fluent Bit configuration; the **operator provisions** the log
+  it off, the on-node journald path still serves `kcimage logs`.
+- KIB ships the Fluent Bit configuration; the **operator provisions** the log
   group, its retention, and the IAM permission (`logs:CreateLogStream`,
-  `logs:PutLogEvents`) on the instance role — infrastructure KDT documents but
+  `logs:PutLogEvents`) on the instance role — infrastructure KIB documents but
   does not create.
 - Strongly recommended for any real cluster (cattle nodes make local-only logs
   nearly useless), but explicitly optional.
@@ -84,16 +84,16 @@ which is why a journald-native shipper is used.)
 
 - Log context carries **node identity** (instance-id / cluster node address) so
   multi-node logs in CloudWatch are attributable to a specific instance.
-- `kcadmin health` / `verify` aggregate a diagnostic summary — `/health/ready`,
+- `kcimage health` / `verify` aggregate a diagnostic summary — `/health/ready`,
   `/health/live`, metrics, DB connectivity, cluster size (ADR-0009) — and
-  `kcadmin logs --since ...` aids triage. Health diagnostics and logs share the
+  `kcimage logs --since ...` aids triage. Health diagnostics and logs share the
   node identity fields for correlation.
 
 ### Scope boundary: server logs vs. Keycloak events
 
 This ADR covers **operational/server logs**. Keycloak's own **login/admin
 events** (a security-audit concern) are realm configuration, stored in the DB or
-emitted via an event listener SPI. KDT enables sensible server logging and notes
+emitted via an event listener SPI. KIB enables sensible server logging and notes
 events as realm-level configuration, not part of the core server-logging path.
 
 ### Never log secrets
@@ -108,7 +108,7 @@ redact diagnostics.
 
 - Logs survive ephemeral nodes: a scaled-in or replaced instance's logs remain
   in CloudWatch, which is essential for diagnosing ASG churn.
-- Structured JSON is queryable centrally and uniform across nodes; `kcadmin`
+- Structured JSON is queryable centrally and uniform across nodes; `kcimage`
   pretty-prints it for humans on-node.
 - Console → journald → Fluent Bit → CloudWatch removes file-rotation complexity
   entirely (no file appender, no disk round-trip).
@@ -120,7 +120,7 @@ redact diagnostics.
   Justified by the ephemeral-node reality, but it is the one place this design
   reaches beyond the node.
 - Raw JSON in `journalctl` is less readable than plain text; mitigated by
-  `kcadmin logs` formatting, but direct `journalctl` users see JSON lines.
+  `kcimage logs` formatting, but direct `journalctl` users see JSON lines.
 - Centralized logging depends on operator-provisioned infrastructure (log group
   + IAM); if it is missing, only the short-lived on-node buffer exists.
 - Fluent Bit is an additional on-node daemon with its own config format, and

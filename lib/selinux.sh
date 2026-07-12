@@ -8,10 +8,10 @@ selinux_available() {
   [[ "$(getenforce 2> /dev/null)" != "Disabled" ]]
 }
 
-# _resolve_selinux_fc — echo the KDT fcontext file (repo or installed layout).
+# _resolve_selinux_fc — echo the KIB fcontext file (repo or installed layout).
 _resolve_selinux_fc() {
   local d
-  for d in "$KCADMIN_BIN_DIR/../selinux" "$KCADMIN_LIB_DIR/../selinux"; do
+  for d in "$KCIMAGE_BIN_DIR/../selinux" "$KCIMAGE_LIB_DIR/../selinux"; do
     if [[ -f "$d/keycloak.fc" ]]; then
       readlink -f "$d/keycloak.fc"
       return 0

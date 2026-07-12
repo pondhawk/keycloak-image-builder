@@ -3,24 +3,24 @@
 
 setup() {
   REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
-  KCADMIN="$REPO_ROOT/scripts/kcadmin"
+  KCIMAGE="$REPO_ROOT/scripts/kcimage"
 }
 
-@test "kcadmin version prints KDT version from VERSION file" {
-  run "$KCADMIN" version
+@test "kcimage version prints KIB version from VERSION file" {
+  run "$KCIMAGE" version
   [ "$status" -eq 0 ]
-  [[ "$output" == *"kcadmin (KDT)"* ]]
+  [[ "$output" == *"kcimage (KIB)"* ]]
   [[ "$output" == *"keycloak baseline: 26.x"* ]]
 }
 
-@test "kcadmin --help exits 0 and lists commands" {
-  run "$KCADMIN" --help
+@test "kcimage --help exits 0 and lists commands" {
+  run "$KCIMAGE" --help
   [ "$status" -eq 0 ]
   [[ "$output" == *"install"* ]]
-  [[ "$output" == *"ami-clean"* ]]
+  [[ "$output" == *"seal"* ]]
 }
 
 @test "unknown command reports unimplemented" {
-  run "$KCADMIN" no-such-command
+  run "$KCIMAGE" no-such-command
   [ "$status" -ne 0 ]
 }

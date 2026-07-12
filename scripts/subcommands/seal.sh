@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# subcommand: ami-clean — sanitize the model instance for imaging (ADR-0004).
+# subcommand: seal — sanitize the model instance for imaging (ADR-0004).
 # Removes secrets, environment-specific config, runtime state, and machine
 # identity, then runs a neutrality gate that FAILS if anything sensitive
-# remains. This is KDT's "prepare for image" step.
+# remains. This is KIB's "prepare for image" step.
 # shellcheck shell=bash
 
-_amiclean_usage() {
+_seal_usage() {
   cat << EOF
-Usage: kcadmin ami-clean [--etc-dir <dir>] [--check]
+Usage: kcimage seal [--etc-dir <dir>] [--check]
 
 Sanitize this instance so it can be imaged into an environment-neutral AMI, then
 run the neutrality gate.
@@ -22,7 +22,7 @@ EOF
 
 # Remove every Keycloak install except the one 'current' points at. Rollback is
 # via the previous AMI, so old on-instance installs are pure AMI bloat.
-_amiclean_prune_versions() {
+_seal_prune_versions() {
   local opt_dir="$1" keep="" dir base
   local current="$opt_dir/current"
   if [[ -L "$current" ]]; then
@@ -49,13 +49,13 @@ _amiclean_prune_versions() {
   done
 }
 
-_amiclean_rm() {
+_seal_rm() {
   local path="$1"
   [[ -e "$path" ]] || return 0
   run rm -f "$path"
 }
 
-_amiclean_purge() {
+_seal_purge() {
   local dir="$1"
   [[ -d "$dir" ]] || return 0
   if is_dry_run; then
@@ -66,7 +66,7 @@ _amiclean_purge() {
 }
 
 # Neutrality gate (ADR-0004): fail if any secret / env-specific value remains.
-_amiclean_gate() {
+_seal_gate() {
   local etc_dir="$1" problems=0 f
   for f in "$etc_dir/keycloak.env" "$etc_dir/bootstrap.env" /run/keycloak/secrets.env; do
     if [[ -e "$f" ]]; then
@@ -79,13 +79,13 @@ _amiclean_gate() {
     problems=1
   fi
   if [[ "$problems" -ne 0 ]]; then
-    log_error "ami-clean neutrality gate FAILED — do NOT image this instance"
+    log_error "seal neutrality gate FAILED — do NOT image this instance"
     return "$EX_CONFIG"
   fi
-  log_info "ami-clean neutrality gate passed — safe to image"
+  log_info "seal neutrality gate passed — safe to image"
 }
 
-cmd_ami_clean() {
+cmd_seal() {
   local etc_dir="$KC_ETC" opt_dir="$KC_OPT" check_only=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -102,38 +102,38 @@ cmd_ami_clean() {
         shift
         ;;
       -h | --help)
-        _amiclean_usage
+        _seal_usage
         return 0
         ;;
       *)
-        log_error "ami-clean: unknown argument: $1"
-        _amiclean_usage
+        log_error "seal: unknown argument: $1"
+        _seal_usage
         return "$EX_USAGE"
         ;;
     esac
   done
 
   if [[ "$check_only" == "1" ]]; then
-    _amiclean_gate "$etc_dir"
+    _seal_gate "$etc_dir"
     return $?
   fi
 
   if ! is_dry_run && [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
-    log_error "ami-clean must run as root"
+    log_error "seal must run as root"
     return "$EX_CONFIG"
   fi
 
   log_info "sanitizing instance for imaging"
   # Environment-specific config + secrets
-  _amiclean_rm "$etc_dir/keycloak.env"
-  _amiclean_rm "$etc_dir/bootstrap.env"
-  _amiclean_purge /run/keycloak
+  _seal_rm "$etc_dir/keycloak.env"
+  _seal_rm "$etc_dir/bootstrap.env"
+  _seal_purge /run/keycloak
   # Runtime state
-  _amiclean_purge "$KC_VAR_LOG"
-  _amiclean_purge "$KC_VAR_BACKUPS"
-  _amiclean_purge "$KC_VAR_LIB"
+  _seal_purge "$KC_VAR_LOG"
+  _seal_purge "$KC_VAR_BACKUPS"
+  _seal_purge "$KC_VAR_LIB"
   # Old Keycloak versions (keep only 'current')
-  _amiclean_prune_versions "$opt_dir"
+  _seal_prune_versions "$opt_dir"
   # Machine identity (regenerated per instance)
   if is_dry_run; then
     log_info "[dry-run] would truncate /etc/machine-id and remove SSH host keys"
@@ -150,5 +150,5 @@ cmd_ami_clean() {
     log_info "[dry-run] would run the neutrality gate"
     return 0
   fi
-  _amiclean_gate "$etc_dir"
+  _seal_gate "$etc_dir"
 }

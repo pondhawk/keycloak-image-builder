@@ -7,7 +7,7 @@
 
 ## Context
 
-KDT runs a multi-node Keycloak cluster behind an AWS ALB, in private subnets,
+KIB runs a multi-node Keycloak cluster behind an AWS ALB, in private subnets,
 with nodes launched and terminated dynamically by an ASG. Nodes must discover
 each other without multicast (unavailable in AWS), form a JGroups/Infinispan
 cluster, and tolerate constant membership churn.
@@ -58,7 +58,7 @@ or peers cannot connect.
 
 Cluster nodes sit in private subnets under a security group with a
 **self-referencing** inbound rule allowing **TCP 7800 and 57800 from the group
-itself**. This is the infrastructure contract KDT **documents and validates**
+itself**. This is the infrastructure contract KIB **documents and validates**
 but does not create (consistent with "toolkit never creates infrastructure").
 The ALB only front-ends HTTP(S); it is **not** part of cluster traffic.
 
@@ -82,13 +82,13 @@ a **brief** stale entry until detection times out. This is acceptable and
 self-healing. Persistent user/client sessions being in the DB means node loss
 does not drop sessions — a key property for a churning ASG.
 
-### Validation (`kcadmin cluster`)
+### Validation (`kcimage cluster`)
 
 Confirms the §9/§12 cluster checks: actual **cluster membership and size**,
 `/health/ready` + `/health/live`, the metrics endpoint, OIDC discovery, and
 Admin Console availability. **A cluster size of 1 is valid** during
 scale-from-zero and during the upgrade smoke test (ADR-0006) — not a failure.
-`kcadmin` flags only a *persistent* mismatch between healthy ASG capacity and
+`kcimage` flags only a *persistent* mismatch between healthy ASG capacity and
 observed cluster size.
 
 ## Consequences

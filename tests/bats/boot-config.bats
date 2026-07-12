@@ -12,8 +12,8 @@ setup() {
 }
 
 _run_boot() { # <secret-json>
-  run env KDT_ETC="$ETC" KDT_RUN="$RUN" NODE_PRIVATE_IP="10.0.1.42" \
-    KDT_SECRET_JSON="$1" bash "$SCRIPT"
+  run env KIB_ETC="$ETC" KIB_RUN="$RUN" NODE_PRIVATE_IP="10.0.1.42" \
+    KIB_SECRET_JSON="$1" bash "$SCRIPT"
 }
 
 @test "splits non-secret fields into keycloak.env" {

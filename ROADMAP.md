@@ -1,10 +1,10 @@
-# KDT Roadmap
+# KIB Roadmap
 
-KDT is a **model-instance build tool**. On the golden/model instance it does
+KIB is a **model-instance build tool**. On the golden/model instance it does
 three things: **install/update** Keycloak, **validate** the install, and
 **prepare it for imaging**. Runtime — boot config, clustering, scaling, upgrade,
 rollback — is handled by the baked-in systemd units + AWS + operational
-runbooks, **not** by `kcadmin`.
+runbooks, **not** by `kcimage`.
 
 ## Commands (the whole surface)
 
@@ -12,15 +12,15 @@ runbooks, **not** by `kcadmin`.
 |---------|---------|--------|
 | `install` | Install/update Keycloak on the model: Java, distribution, dirs, service user, neutral `keycloak.conf`, `kc.sh build`, SELinux contexts | ✅ |
 | `verify` | Validate the install: Java, install, build, config, SELinux Enforcing, systemd units | ✅ |
-| `ami-clean` | Sanitize for imaging + neutrality gate (`--check` runs the gate only) | ✅ |
+| `seal` | Sanitize for imaging + neutrality gate (`--check` runs the gate only) | ✅ |
 | `version` | Toolkit + Keycloak/Java baseline versions | ✅ |
 
 The typical model-instance bake:
 
 ```
-kcadmin install --keycloak-version 26.1.4 --db-vendor mysql
-kcadmin verify
-kcadmin ami-clean         # then create the AMI in the AWS Console
+kcimage install --keycloak-version 26.1.4 --db-vendor mysql
+kcimage verify
+kcimage seal         # then create the AMI in the AWS Console
 ```
 
 ## Remaining
@@ -29,8 +29,8 @@ kcadmin ami-clean         # then create the AMI in the AWS Console
   IMDSv2 + fetches the cluster's JSON secret and splits it (secret→tmpfs,
   non-secret→`keycloak.env`). The split is Bats-tested; the live IMDS/AWS path is
   exercised by the real-instance test below. Uses AWS CLI v2 + `jq` (documented
-  model prerequisites — KDT does not install third-party tooling).
-- Real-instance test on a RHEL-family 10 host, e.g. Rocky Linux 10 (install → verify → ami-clean → image).
+  model prerequisites — KIB does not install third-party tooling).
+- Real-instance test on a RHEL-family 10 host, e.g. Rocky Linux 10 (install → verify → seal → image).
 - Operational docs: upgrade runbook, OS-patching runbook (ADR-0013), README polish.
 - **Centralized logging** (Fluent Bit → CloudWatch, ADR-0010) — deferred
   follow-up; `fluent-bit` isn't in base RHEL repos, so re-evaluate packaging

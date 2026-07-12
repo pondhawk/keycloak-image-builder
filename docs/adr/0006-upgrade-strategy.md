@@ -47,16 +47,16 @@ ADR-0013, not through this scale-to-0 path.
    `/opt/keycloak/keycloak-<new>`.
 2. Deploy custom assets from `/opt/keycloak-custom`; run `kc.sh build` for the
    AMI's `db.vendor`.
-3. `kcadmin verify` — offline checks (Java, build success, units, SELinux
+3. `kcimage verify` — offline checks (Java, build success, units, SELinux
    contexts).
 4. Switch the `current` symlink to the new version **on the golden instance
    only**; re-validate.
-5. `ami-clean` → create the new per-vendor AMI(s) in the AWS Console (ADR-0004).
+5. `seal` → create the new per-vendor AMI(s) in the AWS Console (ADR-0004).
 
 #### Phase 2 — Pre-upgrade RDS snapshot (mandatory)
 
 Take an RDS snapshot; it is the rollback artifact (ADR-0007). The snapshot is a
-Console action, but `kcadmin` **pre-flight verifies a recent snapshot exists and
+Console action, but `kcimage` **pre-flight verifies a recent snapshot exists and
 refuses to proceed otherwise**. Fail-safe, not convenience.
 
 #### Phase 3 — Cutover (the downtime window begins)
@@ -76,7 +76,7 @@ from the **ALB hostname** (`KC_HOSTNAME`), not the instance address, so a
 realistic functional test must go through the ALB — which is safe here because
 the single registered node receives all of that traffic. Two levels:
 
-- **Level 1 — node-local (hostname-independent):** `kcadmin health` on the
+- **Level 1 — node-local (hostname-independent):** `kcimage health` on the
   instance checks `/health/ready` + `/health/live` on the management port —
   process up, DB connected, schema migration applied.
 - **Level 2 — through the ALB hostname:** OIDC discovery (issuer = ALB
@@ -94,7 +94,7 @@ The cluster is expected to be size 1 here — not a failure (ADR-0009).
 **Scale the ASG to the desired capacity** (the smoke-tested node is already
 registered). New nodes launch from the new AMI, join via JDBC_PING2, and pass
 ALB health checks.
-`kcadmin cluster` confirms membership and size. Upgrade complete.
+`kcimage cluster` confirms membership and size. Upgrade complete.
 
 ### Downtime
 

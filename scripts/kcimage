@@ -1,48 +1,48 @@
 #!/usr/bin/env bash
 #
-# kcadmin — Keycloak Deployment Toolkit CLI (dispatcher only; no business logic).
+# kcimage — Keycloak Image Builder CLI (dispatcher only; no business logic).
 # See docs/adr/ for architecture. Coding standards: .claude/coding-standards.md
 #
 set -Eeuo pipefail
 IFS=$'\n\t'
 
 # --- Resolve install layout (works from the repo or from an installed copy) ---
-KCADMIN_SELF="$(readlink -f "${BASH_SOURCE[0]}")"
-KCADMIN_BIN_DIR="$(dirname "$KCADMIN_SELF")"
-if [[ -d "$KCADMIN_BIN_DIR/../lib" && -d "$KCADMIN_BIN_DIR/subcommands" ]]; then
-  # running from the repo: scripts/kcadmin + ../lib + ./subcommands
-  KCADMIN_LIB_DIR="$(readlink -f "$KCADMIN_BIN_DIR/../lib")"
-  KCADMIN_CMD_DIR="$(readlink -f "$KCADMIN_BIN_DIR/subcommands")"
+KCIMAGE_SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+KCIMAGE_BIN_DIR="$(dirname "$KCIMAGE_SELF")"
+if [[ -d "$KCIMAGE_BIN_DIR/../lib" && -d "$KCIMAGE_BIN_DIR/subcommands" ]]; then
+  # running from the repo: scripts/kcimage + ../lib + ./subcommands
+  KCIMAGE_LIB_DIR="$(readlink -f "$KCIMAGE_BIN_DIR/../lib")"
+  KCIMAGE_CMD_DIR="$(readlink -f "$KCIMAGE_BIN_DIR/subcommands")"
 else
-  # running installed: /usr/local/bin/kcadmin + /usr/local/lib/kcadmin/{lib,subcommands}
-  KCADMIN_LIB_DIR="${KCADMIN_LIB_DIR:-/usr/local/lib/kcadmin/lib}"
-  KCADMIN_CMD_DIR="${KCADMIN_CMD_DIR:-/usr/local/lib/kcadmin/subcommands}"
+  # running installed: /usr/local/bin/kcimage + /usr/local/lib/kcimage/{lib,subcommands}
+  KCIMAGE_LIB_DIR="${KCIMAGE_LIB_DIR:-/usr/local/lib/kcimage/lib}"
+  KCIMAGE_CMD_DIR="${KCIMAGE_CMD_DIR:-/usr/local/lib/kcimage/subcommands}"
 fi
-readonly KCADMIN_SELF KCADMIN_BIN_DIR KCADMIN_LIB_DIR KCADMIN_CMD_DIR
+readonly KCIMAGE_SELF KCIMAGE_BIN_DIR KCIMAGE_LIB_DIR KCIMAGE_CMD_DIR
 
 # shellcheck source=../lib/common.sh
-source "$KCADMIN_LIB_DIR/common.sh"
+source "$KCIMAGE_LIB_DIR/common.sh"
 # shellcheck source=../lib/log.sh
-source "$KCADMIN_LIB_DIR/log.sh"
+source "$KCIMAGE_LIB_DIR/log.sh"
 # shellcheck source=../lib/validate.sh
-source "$KCADMIN_LIB_DIR/validate.sh"
+source "$KCIMAGE_LIB_DIR/validate.sh"
 # shellcheck source=../lib/selinux.sh
-source "$KCADMIN_LIB_DIR/selinux.sh"
+source "$KCIMAGE_LIB_DIR/selinux.sh"
 
 # --- Known subcommands (blueprint §11) ---
-# KDT is a model-instance build tool: install/update → verify → prepare-for-image.
-readonly KCADMIN_COMMANDS=(install verify ami-clean version)
+# KIB is a model-instance build tool: install/update → verify → prepare-for-image.
+readonly KCIMAGE_COMMANDS=(install verify seal version)
 
 usage() {
   local cmds
   cmds="$(
     IFS=' '
-    echo "${KCADMIN_COMMANDS[*]}"
+    echo "${KCIMAGE_COMMANDS[*]}"
   )"
   cat << EOF
-kcadmin — Keycloak Deployment Toolkit
+kcimage — Keycloak Image Builder
 
-Usage: kcadmin [global-options] <command> [args]
+Usage: kcimage [global-options] <command> [args]
 
 Global options:
   --dry-run     Perform no mutating action
@@ -101,7 +101,7 @@ cmd_dispatch() {
   local cmd="$1"
   shift || true
   local file fn
-  file="$KCADMIN_CMD_DIR/${cmd}.sh"
+  file="$KCIMAGE_CMD_DIR/${cmd}.sh"
   fn="cmd_${cmd//-/_}"
   if [[ -f "$file" ]]; then
     # shellcheck source=/dev/null

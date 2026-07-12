@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to KDT are documented here. Format loosely follows
+All notable changes to KIB are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versioning is SemVer.
 
 ## [Unreleased]
@@ -12,9 +12,9 @@ All notable changes to KDT are documented here. Format loosely follows
   JSON→journald logging is unaffected.
 
 ### Changed
-- **Scope consolidation:** `kcadmin` reduced to four model-instance commands —
+- **Scope consolidation:** `kcimage` reduced to four model-instance commands —
   `install` (now also renders neutral config + runs `kc.sh build` + SELinux),
-  `verify`, `ami-clean` (new; neutrality gate with `--check`), and `version`.
+  `verify`, `seal` (new; neutrality gate with `--check`), and `version`.
   Dropped the pets-oriented commands (`start`/`stop`/`restart`/`status`/`logs`/
   `journal`/`cluster`/`upgrade`/`rollback`/`health`) and folded `configure`/
   `build`/`check`/`selinux` into `install`/`verify`. Rationale: cattle/immutable
@@ -34,22 +34,22 @@ All notable changes to KDT are documented here. Format loosely follows
   JSON secret, split into `keycloak.env` (non-secret) and tmpfs `secrets.env`
   (0640; credentials + optional bootstrap admin). Never logs secrets; env-override
   hooks make the split Bats-testable without IMDS/AWS.
-- `ami-clean` prunes non-`current` Keycloak installs under `/opt/keycloak` (keeps
+- `seal` prunes non-`current` Keycloak installs under `/opt/keycloak` (keeps
   only the active version) — matters when the model instance is reused for OS
   patching, where old versions would otherwise accumulate into every AMI.
   `--opt-dir` override for testing.
 
 - Milestone 1: all 12 Architecture Decision Records (`docs/adr/`), Accepted.
 - Type B rollback runbook (`docs/operations/rollback-with-db-restore.md`).
-- Milestone 2: repository scaffolding — `kcadmin` dispatcher, `lib/` helpers,
+- Milestone 2: repository scaffolding — `kcimage` dispatcher, `lib/` helpers,
   systemd units, config templates, SELinux fcontext, Bats test, Makefile,
   GitHub Actions (CI + release), `.claude/` standards.
-- Milestone 3: `kcadmin install` — ensures OpenJDK, the service user, the
+- Milestone 3: `kcimage install` — ensures OpenJDK, the service user, the
   directory tree (ADR-0001), and a side-by-side Keycloak distribution with
   `current` symlink management. Idempotent, dry-run aware; Bats-tested.
-- Milestone 3: `kcadmin check` — read-only host prerequisite validation
+- Milestone 3: `kcimage check` — read-only host prerequisite validation
   (Java, systemd, SELinux Enforcing, DNS, commands, optional RDS TCP; §12).
-- Milestone 4: `kcadmin configure` — render `keycloak.conf` (neutral, vendor
+- Milestone 4: `kcimage configure` — render `keycloak.conf` (neutral, vendor
   substituted) and `keycloak.env` (from the environment via `envsubst`) into
   `/etc/keycloak`, with an ADR-0002 neutrality guard. `--etc-dir` override,
   dry-run aware; Bats-tested.
@@ -57,12 +57,12 @@ All notable changes to KDT are documented here. Format loosely follows
   `status`/`logs`/`journal` service commands (dry-run aware), and the
   `boot/configure-node.sh` boot-config skeleton (env-render real; secret fetch
   + IMDS to follow in the Secrets work). Bats-tested.
-- Milestone 6: SELinux — `lib/selinux.sh` + `kcadmin selinux apply`
+- Milestone 6: SELinux — `lib/selinux.sh` + `kcimage selinux apply`
   (`semanage fcontext` + `restorecon`, idempotent, dry-run aware) driven by a
   `semanage`-friendly `selinux/keycloak.fc`; applied automatically during
   `install`. Enforcing is never disabled (ADR-0011). Bats-tested.
-- Milestone 7: Validation — `kcadmin build` (`kc.sh build`), `kcadmin health`
-  (node-local `/health/live`+`/health/ready`), and `kcadmin verify` (pre-clean
+- Milestone 7: Validation — `kcimage build` (`kc.sh build`), `kcimage health`
+  (node-local `/health/live`+`/health/ready`), and `kcimage verify` (pre-clean
   gate: Java, install, build, config, SELinux, units). Shared `lib/validate.sh`
   reporting (also refactored `check` onto it) + `join_sp` helper. Bats-tested.
 

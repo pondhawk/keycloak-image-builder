@@ -34,7 +34,7 @@ memory** of the procedure. Follow it top to bottom.
 **Decision gate — do not proceed unless all are true:**
 
 - [ ] The problem cannot be resolved by a forward-fix in acceptable time.
-- [ ] The upgrade **migrated the schema** (if unsure, `kcadmin` reports this; if
+- [ ] The upgrade **migrated the schema** (if unsure, `kcimage` reports this; if
       still unsure, assume yes — Type B).
 - [ ] The amount of data written since the snapshot is acceptable to lose.
 - [ ] A maintenance window is announced/authorized.
@@ -49,12 +49,12 @@ memory** of the procedure. Follow it top to bottom.
 - [ ] Current DB instance identifier + endpoint. Record: `________________`
 - [ ] AWS Console access with RDS + EC2 Auto Scaling permissions.
 - [ ] The ALB hostname for smoke testing: `________________`
-- [ ] `kcadmin` access on a management/bastion host.
+- [ ] `kcimage` access on a management/bastion host.
 
 Run the pre-flight check (verifies the snapshot and previous AMI exist):
 
 ```
-kcadmin rollback --preflight        # illustrative
+kcimage rollback --preflight        # illustrative
 # Expected: "snapshot <id> found; previous AMI <id> found; OK to proceed"
 ```
 
@@ -107,7 +107,7 @@ Rename-swap:
 `keycloak.env` to the restored instance's endpoint instead of renaming. Use only
 if the rename-swap is not viable.
 
-- [ ] Confirm connectivity to the intended endpoint (e.g. `kcadmin check --db`).
+- [ ] Confirm connectivity to the intended endpoint (e.g. `kcimage check --db`).
 
 ### Step 5 — Revert the launch template to the previous AMI
 - [ ] EC2 → Launch Templates → *(your template)* → **Create new version** with
@@ -123,7 +123,7 @@ if the rename-swap is not viable.
       occur.
 
 ### Step 7 — Smoke test the single node (both levels)
-- [ ] **Level 1 (node-local):** on the instance, `kcadmin health` →
+- [ ] **Level 1 (node-local):** on the instance, `kcimage health` →
       `/health/ready` and `/health/live` pass; DB connected.
 - [ ] **Level 2 (through the ALB hostname):** OIDC discovery issuer = ALB
       hostname; a test login + token succeeds; Admin Console loads.
@@ -136,7 +136,7 @@ if the rename-swap is not viable.
 ### Step 8 — Scale out to desired capacity
 - [ ] Set ASG Desired/Min back to normal (record values: `______`).
 - [ ] Confirm all nodes healthy in the ALB target group.
-- [ ] `kcadmin cluster` → membership and size match expected.
+- [ ] `kcimage cluster` → membership and size match expected.
 
 ### Step 9 — Close the window
 - [ ] Announce service restored. Record end time: `________`.

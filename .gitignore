@@ -1,6 +1,6 @@
 # Build artifacts
-kcadmin-*.tar.gz
-kcadmin-*.tar.gz.sha256
+kcimage-*.tar.gz
+kcimage-*.tar.gz.sha256
 
 # Secrets — must NEVER be committed (ADR-0008)
 *.env

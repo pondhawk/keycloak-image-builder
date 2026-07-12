@@ -7,7 +7,7 @@
 
 ## Context
 
-KDT produces an environment-neutral golden AMI (per vendor) that an ASG
+KIB produces an environment-neutral golden AMI (per vendor) that an ASG
 launches into many ephemeral, self-configuring nodes. Configuration therefore
 has a hard constraint that ordinary Keycloak installs do not: **every value
 must be classifiable as either baked-into-the-AMI (identical across all
@@ -24,7 +24,7 @@ Two independent classifications must be reconciled:
    server image. *Runtime* options (e.g. `db-url`, `db-username`,
    `db-password`, `hostname`, `http-*`, `proxy-headers`) are resolved at start.
 
-2. **KDT's neutral vs environment-specific split.** Neutral values are safe to
+2. **KIB's neutral vs environment-specific split.** Neutral values are safe to
    image and share across environments; environment-specific values are not and
    must come from outside the AMI (Secrets Manager, instance metadata,
    user-data).
@@ -37,7 +37,7 @@ Keycloak's own configuration sources resolve in descending precedence:
 **CLI arguments → environment variables → configuration file → built-in
 defaults** (a Java keystore config source also exists for sensitive values;
 its exact placement is left to ADR-0008 Secrets). The critical, load-bearing
-fact for KDT is that **environment variables override `keycloak.conf`** — this
+fact for KIB is that **environment variables override `keycloak.conf`** — this
 is what lets boot-injected environment values override baked-in neutral config
 without rebuilding.
 
@@ -51,7 +51,7 @@ without rebuilding.
 | 1 | `/etc/keycloak/keycloak.conf` | **Build-time, environment-neutral** platform options | AMI bake | **Yes** |
 | 2 | `/etc/keycloak/keycloak.env` (env vars) | **Runtime, environment-specific** values | First boot | No |
 | 3 | Secrets (AWS Secrets Manager) → env vars | **Sensitive** runtime values | First boot | No |
-| 4 | CLI arguments (via `kcadmin`) | Explicit operational overrides | On demand | n/a |
+| 4 | CLI arguments (via `kcimage`) | Explicit operational overrides | On demand | n/a |
 
 Higher layers override lower. This mirrors Keycloak's native precedence, so a
 boot-injected env var (Layer 2/3) always wins over the baked `keycloak.conf`
@@ -108,10 +108,10 @@ directory**, preserving install immutability.
 
 ### Validation
 
-At bake and at boot, `kcadmin` verifies:
+At bake and at boot, `kcimage` verifies:
 
 - `keycloak.conf` contains no environment-specific values (neutrality gate,
-  paired with `ami-clean`).
+  paired with `seal`).
 - All required runtime env (DB URL/username/password, hostname) is present
   before the service is allowed to start.
 - `bootstrap.env`, if present, is removed once initialization succeeds.
@@ -123,7 +123,7 @@ At bake and at boot, `kcadmin` verifies:
 - A single, testable rule ("neutral+build-time → baked; env-specific → boot")
   makes AMI neutrality auditable rather than a matter of discipline.
 - Boot-injected env vars overriding baked `keycloak.conf` is exactly Keycloak's
-  native precedence, so KDT fights the tool less.
+  native precedence, so KIB fights the tool less.
 - Secrets never touch the AMI or the repo; they have a single delivery path
   (Secrets Manager → env at boot), simplifying the Secrets ADR.
 - Keeping config out of `/opt/keycloak/current` preserves the immutability that

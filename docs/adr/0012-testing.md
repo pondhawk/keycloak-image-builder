@@ -11,8 +11,8 @@ The blueprint (§16) lists a broad testing program (Bats, install/upgrade/
 cluster/rollback suites, "every milestone adds tests"). A full multi-layer,
 both-engine, multi-node CI apparatus was considered and judged **too complex for
 the value** at this project's scale. Instead, testing is deliberately scoped to
-the two moments that actually carry risk, both of which KDT already performs as
-built-in `kcadmin` operations:
+the two moments that actually carry risk, both of which KIB already performs as
+built-in `kcimage` operations:
 
 1. **The golden image** — is it functionally correct *and* safely neutral before
    it becomes an AMI?
@@ -21,11 +21,11 @@ built-in `kcadmin` operations:
 This is acceptance/validation testing at the right checkpoints, not a regression
 suite. The trade-off is accepted (see Consequences) and consciously narrows §16.
 
-**Scope — we are not testing Keycloak.** KDT tests validate that **the toolkit
+**Scope — we are not testing Keycloak.** KIB tests validate that **the toolkit
 did its job**: install, configure, neutralize, deploy, and wire up clustering
 and the reverse-proxy/hostname setup. Keycloak's own correctness (OIDC, login,
-token issuance) is covered upstream and is **out of scope** — KDT checks that
-Keycloak is **healthy and reachable with the configuration KDT applied**, not
+token issuance) is covered upstream and is **out of scope** — KIB checks that
+Keycloak is **healthy and reachable with the configuration KIB applied**, not
 that Keycloak's auth logic behaves.
 
 ## Decision
@@ -37,20 +37,20 @@ that Keycloak's auth logic behaves.
 
 These cost almost nothing and catch real scripting defects; they stay.
 
-### 2. Golden-image validation — before and after `ami-clean`
+### 2. Golden-image validation — before and after `seal`
 
-Two gates on the golden instance, both run by `kcadmin`:
+Two gates on the golden instance, both run by `kcimage`:
 
-**Before `ami-clean` — functional correctness (`kcadmin verify`):**
+**Before `seal` — functional correctness (`kcimage verify`):**
 - Java present and correct version; `kc.sh build` succeeded; `start --optimized`
   works.
-- Service starts; `/health/ready` and `/health/live` pass; the endpoints KDT
-  configured are reachable and reflect KDT's config (e.g. OIDC discovery issuer
+- Service starts; `/health/ready` and `/health/live` pass; the endpoints KIB
+  configured are reachable and reflect KIB's config (e.g. OIDC discovery issuer
   equals the configured hostname) — a config check, not a Keycloak-behavior test.
 - SELinux **Enforcing** with correct contexts; systemd units valid; config
   renders correctly.
 
-**After `ami-clean` — neutrality (the security-critical gate):**
+**After `seal` — neutrality (the security-critical gate):**
 - No secrets on disk (`/run` clear, `bootstrap.env` gone); `keycloak.env` reset
   to template — no real endpoints/hostnames.
 - `machine-id` truncated; SSH host keys removed; logs, backups, realm exports,
@@ -63,19 +63,19 @@ Passing both is the definition of "ready to image."
 
 ### 3. Post-deploy smoke test — after ASG scale to 1
 
-Reusing ADR-0006 Phase 4, `kcadmin` runs a **simple but effective** two-level
+Reusing ADR-0006 Phase 4, `kcimage` runs a **simple but effective** two-level
 smoke test on the single new node:
 
-- **Node-local:** `/health/ready`, `/health/live` — the process KDT deployed is
-  up and connected to the DB with the URL/credentials KDT wired.
-- **Through the ALB (reachability + KDT's config, not Keycloak's behavior):** the
+- **Node-local:** `/health/ready`, `/health/live` — the process KIB deployed is
+  up and connected to the DB with the URL/credentials KIB wired.
+- **Through the ALB (reachability + KIB's config, not Keycloak's behavior):** the
   node answers through the ALB; OIDC discovery returns the **expected issuer =
-  ALB hostname** (validates KDT's `hostname` / `proxy-headers` setup); the Admin
+  ALB hostname** (validates KIB's `hostname` / `proxy-headers` setup); the Admin
   Console endpoint is reachable. We do **not** perform login/token flows — that
-  exercises Keycloak's functionality, which is not KDT's to test.
+  exercises Keycloak's functionality, which is not KIB's to test.
 
-Pass → scale out (`kcadmin cluster` then confirms the node joined — validating
-KDT's JDBC_PING2 / bind-address / security-group wiring). Fail → roll back. This
+Pass → scale out (`kcimage cluster` then confirms the node joined — validating
+KIB's JDBC_PING2 / bind-address / security-group wiring). Fail → roll back. This
 is the gate for every deploy and every upgrade.
 
 ### 4. Engine coverage falls out naturally
@@ -95,9 +95,9 @@ being produced.
 
 ### 6. "Every milestone adds tests" — reinterpreted
 
-Each milestone **extends the `kcadmin verify` / neutrality / smoke checks** that
+Each milestone **extends the `kcimage verify` / neutrality / smoke checks** that
 apply to it, rather than adding a separate test tier. Green ShellCheck/shfmt and
-passing `kcadmin verify` are the merge/Definition-of-Done gates (§20).
+passing `kcimage verify` are the merge/Definition-of-Done gates (§20).
 
 ## Consequences
 
@@ -116,7 +116,7 @@ passing `kcadmin verify` are the merge/Definition-of-Done gates (§20).
 ### Negative / Trade-offs
 
 - **Weak regression protection.** Without unit/integration suites, a script
-  change can break behavior that no test catches until `kcadmin verify` or a
+  change can break behavior that no test catches until `kcimage verify` or a
   smoke test fails during a bake or deploy — later and more expensively than a
   unit test would.
 - Upgrade and rollback correctness leans on **manual runbook rehearsal**
@@ -128,7 +128,7 @@ passing `kcadmin verify` are the merge/Definition-of-Done gates (§20).
 
 ### Notes
 
-- `kcadmin verify` scope → ADR-0004, ADR-0006.
+- `kcimage verify` scope → ADR-0004, ADR-0006.
 - Neutrality gate → ADR-0004.
 - Smoke test → ADR-0006.
 - Rollback rehearsals → ADR-0007.

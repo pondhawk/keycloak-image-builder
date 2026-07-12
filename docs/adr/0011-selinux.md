@@ -9,10 +9,10 @@
 
 SELinux **Enforcing is mandatory** and must never be disabled (blueprint §3,
 §14). The toolkit automates `restorecon`, `semanage`, and policy installation
-"when required." SELinux is KDT's primary mandatory-access control; systemd
+"when required." SELinux is KIB's primary mandatory-access control; systemd
 sandboxing is secondary defense-in-depth (ADR-0005).
 
-KDT installs Keycloak and its data into **non-standard paths** (ADR-0001), which
+KIB installs Keycloak and its data into **non-standard paths** (ADR-0001), which
 means their SELinux labels are not what stock policy expects and must be managed
 explicitly. The surfaces that need SELinux attention:
 
@@ -32,8 +32,8 @@ with the project's simplicity goal and §14's "policy **when required**."
 
 ### 1. Enforcing is a hard invariant
 
-`getenforce` must report **Enforcing** on every node. `kcadmin check`/`verify`
-assert this and **fail** otherwise. KDT never sets Permissive and never disables
+`getenforce` must report **Enforcing** on every node. `kcimage check`/`verify`
+assert this and **fail** otherwise. KIB never sets Permissive and never disables
 SELinux — problems are fixed with contexts and policy, not by weakening SELinux.
 
 ### 2. Pragmatic domain strategy: manage contexts, don't build a bespoke domain up front
@@ -48,7 +48,7 @@ is invest in a bespoke confinement domain. A custom policy module is introduced
 
 ### 3. Explicit, persistent file contexts
 
-KDT declares file-context rules with `semanage fcontext -a` and applies them with
+KIB declares file-context rules with `semanage fcontext -a` and applies them with
 `restorecon -R` after install, after config rendering, and after deploying
 custom assets. Because the rules are registered with `semanage`, labels are
 correct and **survive a full relabel**.
@@ -81,7 +81,7 @@ then, no port labeling is done.
 
 ### 6. Denial-driven policy workflow
 
-During golden-instance build and testing, KDT exercises representative
+During golden-instance build and testing, KIB exercises representative
 operations (start, cluster join, upgrade, Fluent Bit shipping) and inspects the
 audit log (`ausearch -m AVC`). A **legitimate** denial is turned into a
 **minimal** policy module (`audit2allow`), reviewed, and shipped under
@@ -90,8 +90,8 @@ bakes any required module plus correct labels.
 
 ### 7. Validation
 
-`kcadmin` SELinux checks: `getenforce == Enforcing`; expected `semanage
-fcontext` rules present; labels on KDT paths correct; **no unexpected AVC
+`kcimage` SELinux checks: `getenforce == Enforcing`; expected `semanage
+fcontext` rules present; labels on KIB paths correct; **no unexpected AVC
 denials** for Keycloak or Fluent Bit in the recent audit log.
 
 ## Consequences

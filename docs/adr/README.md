@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-KDT uses the [Nygard ADR format](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions)
+KIB uses the [Nygard ADR format](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions)
 (Status · Context · Decision · Consequences). Per blueprint §21, implementation
 begins only after the relevant ADRs are **Accepted**.
 

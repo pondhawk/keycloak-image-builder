@@ -1,6 +1,6 @@
-# KDT Coding Standards
+# KIB Coding Standards
 
-All KDT code is **Bash 5**, orchestration-style. These standards are enforced by
+All KIB code is **Bash 5**, orchestration-style. These standards are enforced by
 ShellCheck, shfmt, and review.
 
 ## Bash strict mode (mandatory)
@@ -37,7 +37,7 @@ state, exit 0 if already there. Tested by running twice (ADR-0012).
 
 ## Structure
 
-- `scripts/kcadmin` — the dispatcher only; no business logic.
+- `scripts/kcimage` — the dispatcher only; no business logic.
 - `scripts/subcommands/<cmd>.sh` — one file per subcommand, exposes
   `cmd_<name>()`.
 - `lib/*.sh` — sourced helpers (`log`, `common`, `aws`, `db`, `selinux`,
@@ -64,5 +64,5 @@ state, exit 0 if already there. Tested by running twice (ADR-0012).
 
 ## Don't test Keycloak (ADR-0012)
 
-Validate that KDT did its job (install/config/clean/deploy/wiring), not that
+Validate that KIB did its job (install/config/clean/deploy/wiring), not that
 Keycloak's auth logic works.

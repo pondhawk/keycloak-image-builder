@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# bootstrap.sh — install the Keycloak Image Builder toolkit (kcimage) onto this
+# host, so you run `kcimage` from PATH (never a versioned path).
+# Run once per toolkit version:  sudo ./bootstrap.sh
+# Re-run after downloading a newer release to upgrade in place.
+set -Eeuo pipefail
+
+PREFIX="${PREFIX:-/usr/local}"
+DESTDIR="${DESTDIR:-}"
+BINDIR="$PREFIX/bin"
+LIBDIR="$PREFIX/lib/kcimage"
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$here"
+
+install -d "$DESTDIR$LIBDIR"/lib "$DESTDIR$LIBDIR"/subcommands \
+  "$DESTDIR$LIBDIR"/templates "$DESTDIR$LIBDIR"/boot "$DESTDIR$LIBDIR"/selinux \
+  "$DESTDIR$LIBDIR"/systemd
+install -m 0644 lib/*.sh "$DESTDIR$LIBDIR/lib/"
+install -m 0644 scripts/subcommands/*.sh "$DESTDIR$LIBDIR/subcommands/"
+install -m 0644 templates/* "$DESTDIR$LIBDIR/templates/"
+install -m 0755 boot/*.sh "$DESTDIR$LIBDIR/boot/"
+install -m 0644 selinux/* "$DESTDIR$LIBDIR/selinux/"
+install -m 0644 systemd/*.service "$DESTDIR$LIBDIR/systemd/"
+install -m 0644 VERSION "$DESTDIR$LIBDIR/VERSION"
+
+install -d "$DESTDIR$BINDIR"
+install -m 0755 scripts/kcimage "$DESTDIR$BINDIR/kcimage"
+
+echo "installed kcimage $(cat VERSION) to $DESTDIR$BINDIR/kcimage"

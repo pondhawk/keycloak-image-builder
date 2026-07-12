@@ -73,6 +73,6 @@ jobs:
         with:
           tag_name: v${{ steps.ver.outputs.version }}
           files: |
-            kcadmin-*.tar.gz
-            kcadmin-*.tar.gz.sha256
+            kcimage-*.tar.gz
+            kcimage-*.tar.gz.sha256
           generate_release_notes: true

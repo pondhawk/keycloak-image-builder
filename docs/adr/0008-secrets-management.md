@@ -9,7 +9,7 @@
 
 The AMI is environment-neutral and carries **no** secrets (§15, ADR-0004).
 Every ephemeral ASG node must therefore obtain its secrets at boot. The secrets
-KDT handles are:
+KIB handles are:
 
 - **Keycloak database credentials** (app user + password) — needed every boot.
 - **Bootstrap admin credentials** — needed only when the database is
@@ -54,7 +54,7 @@ Each cluster's launch template conveys **only the secret's name/ARN** in
 user-data — a non-sensitive pointer, never a credential:
 
 ```
-KDT_SECRET_ID=keycloak/<cluster>/config
+KIB_SECRET_ID=keycloak/<cluster>/config
 ```
 
 Putting a *name* in user-data is safe; putting a *password* there would not be
@@ -72,7 +72,7 @@ secret.
 
 The `keycloak-config.service` root oneshot (ADR-0005) does, on every boot:
 
-1. Read `KDT_SECRET_ID` from user-data and the private IP from **IMDSv2**.
+1. Read `KIB_SECRET_ID` from user-data and the private IP from **IMDSv2**.
 2. `secretsmanager:GetSecretValue` on that **one** secret (instance IAM role).
 3. Write **non-secret** fields (`db_url`, `hostname`, `java_opts_append`) plus the
    private IP into `/etc/keycloak/keycloak.env`.
@@ -119,12 +119,12 @@ a no-op here (populated DB), and doubly safe by being tmpfs-only.
   automatically by any newly launched node.
 - Keycloak reads DB credentials at start, so rotating the DB password for a
   running fleet requires **cycling the nodes** (ASG instance replacement) — which
-  the immutable model already makes routine. KDT does **not** implement live
+  the immutable model already makes routine. KIB does **not** implement live
   secret reload.
 
 ### No secret ever logged
 
-`kcadmin` and the boot scripts must never echo or log secret values (strict-mode
+`kcimage` and the boot scripts must never echo or log secret values (strict-mode
 scripts, no `set -x` over secret handling, redacted diagnostics). Secrets Manager
 access is itself auditable via CloudTrail.
 
@@ -133,7 +133,7 @@ access is itself auditable via CloudTrail.
 ### Positive
 
 - Secrets never touch persistent disk or the AMI: tmpfs delivery makes AMI
-  neutrality structural rather than reliant on `ami-clean` scrubbing.
+  neutrality structural rather than reliant on `seal` scrubbing.
 - One secret per cluster + a name-only user-data pointer is both flexible
   (N clusters) and secure (no credential ever in user-data); boot is a single
   fetch.
@@ -157,7 +157,7 @@ access is itself auditable via CloudTrail.
 ### Notes
 
 - The boot fetch uses the **AWS CLI v2** and **`jq`**, installed on the model as
-  documented prerequisites (README) and baked into the AMI. KDT does not install
+  documented prerequisites (README) and baked into the AMI. KIB does not install
   third-party tooling; AWS CLI v2 is not in the RHEL repos (official bundle),
   `jq` is (`dnf`).
 - Boot orchestration and unit wiring → ADR-0005.
