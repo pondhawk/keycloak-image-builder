@@ -11,7 +11,27 @@ All notable changes to KIB are documented here. Format loosely follows
   RHEL repos and the packaging approach needs its own evaluation. On-node
   JSON→journald logging is unaffected.
 
+### Fixed
+- **`seal` neutrality gate no longer false-positives on comments** (found on the
+  first real-instance `seal`). The gate scanned all of `/etc/keycloak` including
+  comment lines, so the neutral `keycloak.conf` header ("…no endpoints,
+  hostnames, or secrets") matched `secret` and failed the gate. It now strips
+  comment/blank lines before scanning (matching the install-time neutrality
+  check) and also flags `://` endpoints. The Bats "gate passes" test now embeds a
+  `secrets` comment so this can't regress.
+
 ### Changed
+- **Mutating commands refuse on a running node.** `install`/`upgrade`/`seal`/
+  `clean` check `keycloak.service`; if it's active — a live ASG node, never the
+  model instance (which builds/seals but never starts Keycloak) — they refuse.
+  Belt-and-suspenders beyond the confirmation prompt, so the toolkit baked into
+  the image can't wreck a production node even if someone confirms. Escape hatch
+  is `systemctl stop keycloak` (never needed on a real model); no bypass flag.
+- **`bootstrap.sh` symlinks `/usr/sbin/kcimage`** so `sudo kcimage` works on
+  hardened images whose sudo `secure_path` excludes `/usr/local/bin` (found
+  during real-instance testing — `sudo kcimage` gave "command not found"). Uses
+  `/usr/sbin` (in every default `secure_path`); no sudoers edit, no override of a
+  deliberate hardening choice.
 - **`install`/`upgrade` now hard-refuse Keycloak majors below 26** (was a
   warning). The baked config is 26-era — jdbc-ping cache stack,
   `KC_BOOTSTRAP_ADMIN_*`, management port — and those are mostly *runtime*

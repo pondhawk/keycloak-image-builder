@@ -25,6 +25,13 @@ setup() {
   [ ! -e /opt/keycloak ]
 }
 
+@test "clean refuses on a running (live) node" {
+  export KIB_ASSUME_KEYCLOAK_ACTIVE=1
+  run "$KCIMAGE" clean
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"live node"* ]]
+}
+
 @test "dry-run clean reports state and changes nothing" {
   run "$KCIMAGE" --dry-run clean
   [ "$status" -eq 0 ]

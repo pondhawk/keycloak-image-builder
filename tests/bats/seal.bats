@@ -30,8 +30,14 @@ setup() {
   [[ "$output" != *"remove old install: $opt/keycloak-26.2.0"* ]]
 }
 
-@test "gate passes on a neutral config dir" {
-  printf 'db=mysql\n' > "$ETC/keycloak.conf"
+@test "gate passes on a neutral config dir (comment mentioning 'secrets' is ignored)" {
+  # The real rendered keycloak.conf has a comment header that literally says
+  # "secrets"/"endpoints"; the gate must scan directive lines only.
+  cat > "$ETC/keycloak.conf" << 'CONF'
+# keycloak.conf — NEUTRAL. Contains NO endpoints, hostnames, or secrets.
+db=mysql
+cache-stack=jdbc-ping
+CONF
   run "$KCIMAGE" seal --check --etc-dir "$ETC"
   [ "$status" -eq 0 ]
   [[ "$output" == *"gate passed"* ]]
@@ -50,4 +56,11 @@ setup() {
   run "$KCIMAGE" seal --check --etc-dir "$ETC"
   [ "$status" -ne 0 ]
   [[ "$output" == *"possible secret/endpoint"* ]]
+}
+
+@test "seal refuses on a running (live) node" {
+  export KIB_ASSUME_KEYCLOAK_ACTIVE=1
+  run "$KCIMAGE" seal --etc-dir "$ETC"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"live node"* ]]
 }

@@ -74,9 +74,16 @@ _seal_gate() {
       problems=1
     fi
   done
-  if [[ -d "$etc_dir" ]] && grep -rqiE 'password|secret|amazonaws\.com' "$etc_dir" 2> /dev/null; then
-    log_error "gate: possible secret/endpoint under $etc_dir"
-    problems=1
+  # Scan config *directives* for secrets/endpoints, skipping comment and blank
+  # lines — the neutral keycloak.conf comment header legitimately mentions
+  # "secrets"/"endpoints", and a comment must never trip the gate.
+  if [[ -d "$etc_dir" ]]; then
+    while IFS= read -r -d '' f; do
+      if grep -vE '^[[:space:]]*(#|$)' "$f" 2> /dev/null | grep -qiE 'password|secret|://|amazonaws\.com'; then
+        log_error "gate: possible secret/endpoint in $f"
+        problems=1
+      fi
+    done < <(find "$etc_dir" -type f -print0)
   fi
   if [[ "$problems" -ne 0 ]]; then
     log_error "seal neutrality gate FAILED — do NOT image this instance"
@@ -118,6 +125,7 @@ cmd_seal() {
     return $?
   fi
 
+  guard_not_live_node "seal" || return $?
   if ! is_dry_run && [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
     log_error "seal must run as root"
     return "$EX_CONFIG"

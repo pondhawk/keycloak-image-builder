@@ -350,6 +350,7 @@ cmd_install() {
       ;;
   esac
   _install_validate_version "$kc_version" || return "$EX_USAGE"
+  guard_not_live_node "install" || return $?
   _install_check_privileges || return "$EX_CONFIG"
   _install_guard_greenfield "$etc_dir" || return $?
   confirm "Install Keycloak $kc_version (db=$vendor) on this model instance." || return $?

@@ -100,3 +100,26 @@ confirm() {
       ;;
   esac
 }
+
+# _keycloak_is_active — true when keycloak.service is running. On the model
+# instance Keycloak is built + sealed but never started (enabled-but-inactive);
+# on a production ASG node it is active. Test hook:
+# KIB_ASSUME_KEYCLOAK_ACTIVE=1 forces "active" without systemd.
+_keycloak_is_active() {
+  if [[ "${KIB_ASSUME_KEYCLOAK_ACTIVE:-0}" == "1" ]]; then return 0; fi
+  systemctl is-active --quiet keycloak.service 2> /dev/null
+}
+
+# guard_not_live_node <action> — refuse a destructive/build op when Keycloak is
+# running. If the service is up, this is almost certainly a live node (cattle),
+# not the model instance, so refuse rather than break it. No bypass flag; the
+# honest escape hatch is `systemctl stop keycloak`, never needed on a real model.
+guard_not_live_node() {
+  local action="${1:-proceed}"
+  if is_dry_run; then return 0; fi
+  if _keycloak_is_active; then
+    log_error "keycloak.service is running — this looks like a live node, not a model instance."
+    log_error "Refusing to $action. If this really is your model, stop it first: systemctl stop keycloak"
+    return "$EX_CONFIG"
+  fi
+}

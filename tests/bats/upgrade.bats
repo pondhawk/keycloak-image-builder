@@ -44,6 +44,13 @@ _seed_install() { # <etc-dir> <vendor>
   [[ "$output" == *"26.x or newer"* ]]
 }
 
+@test "upgrade refuses on a running (live) node" {
+  export KIB_ASSUME_KEYCLOAK_ACTIVE=1
+  run "$KCIMAGE" upgrade --keycloak-version 26.2.0 --etc-dir "$BATS_TEST_TMPDIR/etc"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"live node"* ]]
+}
+
 @test "upgrade does not accept --db-vendor (rejected as an unknown argument)" {
   local etc="$BATS_TEST_TMPDIR/etc"
   _seed_install "$etc" mysql
