@@ -11,6 +11,10 @@
 #
 # SKELETON: steps 1-3 (user-data + IMDS + Secrets Manager) are the Secrets work;
 # the env render (step 4) is real and self-contained.
+#
+# Requires (model-instance prerequisites, baked into the AMI — see README):
+#   - AWS CLI v2 (official bundle; not in the RHEL repos)
+#   - jq (from dnf: `dnf install jq`)
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
