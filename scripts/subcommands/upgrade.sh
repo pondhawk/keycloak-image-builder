@@ -15,24 +15,21 @@ _upgrade_usage() {
 Usage: kcimage upgrade --keycloak-version <ver> [options]
 
 Upgrade the Keycloak version on a model that already has an install. The DB
-vendor is read from the existing install (not a flag), so the image's baked
-vendor never changes. The new version installs side-by-side and is activated by
-default. Use 'kcimage install' for a first (greenfield) install instead.
+vendor is inherited from the existing install, so an upgrade never changes the
+image's baked vendor. The new version installs side-by-side and is activated.
+Use 'kcimage install' for a first (greenfield) install instead.
 
 Options:
   --keycloak-version <ver>   New Keycloak version, e.g. 26.2.0 (required)
   --java-package <pkg>       OpenJDK package (default: java-${KIB_JAVA_MAJOR}-openjdk-headless)
   --etc-dir <dir>            Config dir (default: /etc/keycloak)
   --providers-dir <dir>      Custom provider JARs (default: ~/keycloak-custom-providers)
-  --stage                    Lay the version down but do NOT activate/build it
-                             (pre-download ahead of a window); re-run without
-                             --stage later to make it live.
   -h, --help                 Show this help
 EOF
 }
 
 cmd_upgrade() {
-  local kc_version="" etc_dir="$KC_ETC" providers_dir="" stage=0
+  local kc_version="" etc_dir="$KC_ETC" providers_dir=""
   local java_pkg="java-${KIB_JAVA_MAJOR}-openjdk-headless"
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -52,16 +49,12 @@ cmd_upgrade() {
         providers_dir="${2:-}"
         shift 2
         ;;
-      --stage)
-        stage=1
-        shift
-        ;;
       -h | --help)
         _upgrade_usage
         return 0
         ;;
       *)
-        log_error "upgrade: unknown argument: $1 (note: --db-vendor is not accepted; the vendor is read from the model)"
+        log_error "upgrade: unknown argument: $1"
         _upgrade_usage
         return "$EX_USAGE"
         ;;
@@ -82,6 +75,8 @@ cmd_upgrade() {
     return "$EX_CONFIG"
   }
 
+  confirm "Upgrade to Keycloak $kc_version (db=$vendor) and switch the active version." || return $?
+
   log_info "upgrading to Keycloak $kc_version (db=$vendor, read from the existing install)"
-  _install_core "$kc_version" "$vendor" "$java_pkg" "$etc_dir" "$providers_dir" "$stage"
+  _install_core "$kc_version" "$vendor" "$java_pkg" "$etc_dir" "$providers_dir"
 }

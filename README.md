@@ -77,6 +77,13 @@ node.
 - **The DB vendor is baked in at build time** (it drives `kc.sh build`), so a
   golden image is Postgres **or** MySQL — build one image per vendor you run.
 
+**Keycloak version**
+
+- **26.x or newer.** `install`/`upgrade` **refuse** older majors — the baked
+  config is Keycloak 26-era (jdbc-ping cache stack, `KC_BOOTSTRAP_ADMIN_*`,
+  management port), and an older server would pass the model gates but fail at
+  node boot. Newer majors are allowed with a warning (untested).
+
 ---
 
 ## Install the toolkit
@@ -133,6 +140,12 @@ kcimage --verbose <command>    # debug-level logging
 kcimage <command> --help       # per-command usage
 ```
 
+The mutating commands (`install`, `upgrade`, `seal`, `clean`) **prompt for
+confirmation** before doing anything. There is deliberately no `--yes`/`--force`
+bypass — a flag like that, sitting in your shell history, would defeat the
+prompt on an accidental up-arrow re-run. Use `--dry-run` to preview
+non-interactively; automation is intentionally not a goal for these.
+
 ---
 
 ## Command reference
@@ -142,10 +155,10 @@ The runbooks above are the intended path; this is the flat reference.
 | Command | What it does |
 |---------|--------------|
 | `install` | Establish a **fresh** Keycloak install (lineage) on a clean model: Java, distribution, service user, directories, neutral `keycloak.conf`, custom providers, `kc.sh build`, systemd units + boot script, SELinux contexts. Greenfield-only. Requires `--keycloak-version` and `--db-vendor`. |
-| `upgrade` | Move an **existing** install to a new Keycloak version (side-by-side; activates by default). Reads the DB vendor from the model — **no `--db-vendor`**, so it can't change the baked vendor. `--stage` pre-downloads without activating. Requires `--keycloak-version`. |
+| `upgrade` | Move an **existing** install to a new Keycloak version (side-by-side; activated automatically). Inherits the DB vendor from the existing install, so an upgrade can't change the baked vendor. Requires `--keycloak-version`. |
 | `verify` | Offline pre-seal validation: Java, install, build, config, SELinux Enforcing, systemd units, and that every custom provider landed. Exits non-zero on any failure. |
 | `seal` | Sanitize the instance for imaging (remove secrets, env config, runtime state, machine identity) and run the neutrality gate. `--check` runs the gate only. |
-| `clean` | Invert `install`, returning the model to a pristine state. Keeps the toolkit, OpenJDK, and `~/keycloak-custom-providers`. `--yes` to apply; mostly for testing. |
+| `clean` | Invert `install`, returning the model to a pristine state. Keeps the toolkit, OpenJDK, and `~/keycloak-custom-providers`. Mostly for testing. |
 | `version` | Show the KIB, Keycloak-baseline, and Java versions. |
 
 ---

@@ -122,6 +122,7 @@ cmd_seal() {
     log_error "seal must run as root"
     return "$EX_CONFIG"
   fi
+  confirm "This will SANITIZE this instance for imaging (remove secrets, env config, runtime state, SSH host keys, machine-id)." || return $?
 
   log_info "sanitizing instance for imaging"
   # Environment-specific config + secrets

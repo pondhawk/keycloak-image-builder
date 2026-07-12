@@ -17,9 +17,12 @@ setup() {
   [ "$status" -ne 0 ]
 }
 
-@test "a real clean without --yes (or root) fails" {
+@test "a real clean refuses without confirmation (no bypass flag, no terminal)" {
+  # No --dry-run: must either require root or refuse without an interactive
+  # confirmation — never proceed unattended.
   run "$KCIMAGE" clean
   [ "$status" -ne 0 ]
+  [ ! -e /opt/keycloak ]
 }
 
 @test "dry-run clean reports state and changes nothing" {
