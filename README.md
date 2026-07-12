@@ -1,36 +1,90 @@
 # Keycloak Image Builder (KIB)
 
-`kcimage` — a Bash CLI that turns a fresh **RHEL-family 10** instance into a
-**golden Keycloak model**, then sanitizes it so you can bake an environment-neutral
-AMI. That AMI is what your Auto Scaling Group launches.
+`kcimage` — a Bash CLI that turns a fresh **RHEL-family 9+** instance into a
+**golden Keycloak model**, then sanitizes it so you can bake an
+environment-neutral **AMI**. That AMI is what your Auto Scaling Group launches.
 
-> **Status:** v0.1.0 — the four commands work and CI is green; real-instance
-> testing and the boot secret-fetch remain. See `ROADMAP.md`.
+> **Status:** v1.0.0 — the toolkit is complete and CI is green. Real-instance
+> validation on RHEL-family 9 is underway. See `ROADMAP.md`.
 
 KIB is a **model-instance build tool**, not a production-node console (nodes are
-cattle). It does exactly three things on the model instance:
+cattle). On the model instance it does exactly three things —
+**install/update → verify → prepare-for-image** — and then you bake an AMI from
+it. Everything a running node needs is either baked into the AMI or injected at
+boot from launch-template user-data; nobody ever runs `kcimage` on a production
+node.
 
-**install/update → verify → prepare-for-image.**
+```
+  ┌──────────────────────────────────────────────────────────────┐
+  │  MODEL INSTANCE  (RHEL 9+, SELinux Enforcing)                  │
+  │  — you run kcimage here —                                      │
+  │                                                                │
+  │    install ─────▶ verify ─────▶ seal ─────▶ ✅ ready for image │
+  │    Java, Keycloak, (offline    (sanitize +                     │
+  │    config, build,   gates)      neutrality                     │
+  │    systemd, SELinux)            gate)                          │
+  └───────────────────────────────┬──────────────────────────────┘
+                                   │  AWS Console: Create image
+                                   ▼
+                         ┌───────────────────┐
+                         │   Golden AMI      │   one per DB vendor
+                         └─────────┬─────────┘
+                                   │  Launch Template + user-data (KC_* keys)
+                                   ▼
+        ┌─────────────────────────────────────────────────┐
+        │  Auto Scaling Group — nodes self-configure at boot│
+        │     node — node — node   (jdbc-ping cluster)      │
+        └────────┬────────────────────────────┬────────────┘
+                 │ HTTP (x-forwarded)          │ JDBC
+          ┌──────▼──────┐                ┌──────▼───────┐
+          │  ALB (TLS)  │                │  PostgreSQL  │  or MySQL
+          └─────────────┘                │  (RDS/Aurora/self-managed)
+                                         └──────────────┘
+```
 
 ---
 
 ## Requirements
 
-- **RHEL-family 10** (Rocky / AlmaLinux / RHEL) — needs `dnf` and **SELinux Enforcing**
-- **root** on the model instance (`sudo`)
-- Internet access to download the Keycloak distribution
-- An existing, populated **RDS** (PostgreSQL or MySQL) for the running cluster
-  (KIB never creates databases)
+**Operating system — the model instance and the nodes**
+
+- **RHEL-family 9 or above** — Rocky Linux, AlmaLinux, RHEL, Oracle Linux, or
+  CentOS Stream (Fedora works too). RHEL 8 has no known blocker but is unverified.
+- The requirement is really its toolchain, not a brand: **`dnf`**, **SELinux in
+  Enforcing mode**, **systemd**, and a **`java-21-openjdk`** package in the
+  repos. This rules out SUSE/SLES (`zypper`) and Debian/Ubuntu (`apt` +
+  AppArmor, not SELinux).
+
+**Access & network**
+
+- **root** on the model instance (`sudo`).
+- Outbound internet from the model instance to download the Keycloak
+  distribution.
+
+**Database** — KIB never creates, migrates, or owns your data.
+
+- A **reachable, already-populated** database: **PostgreSQL** or **MySQL**,
+  running on RDS, Aurora, a self-managed host, or a container — KIB doesn't care
+  where.
+- Supported engine versions track the Keycloak release you install
+  ([source of truth](https://www.keycloak.org/server/db)). For Keycloak 26.x:
+
+  | Engine | `--db-vendor` | Supported versions |
+  |--------|---------------|--------------------|
+  | PostgreSQL | `postgres` | 14.x – 18.x (Amazon Aurora PostgreSQL 15–17) |
+  | MySQL | `mysql` | 8.0, 8.4 (LTS) — 5.7 is **not** supported |
+
+- **The DB vendor is baked in at build time** (it drives `kc.sh build`), so a
+  golden AMI is Postgres **or** MySQL — build one AMI per vendor you run.
 
 ---
 
 ## Install the toolkit
 
-Download the latest release, extract it, and run `bootstrap.sh` to put `kcimage`
-on your `PATH`. (`kcimage install` later bakes everything the *AMI* needs;
-`make` is not required on the model instance.)
-
-Download, extract, and install (the version is resolved automatically):
+**Required first step for every runbook below.** Download the latest release,
+extract it, and run `bootstrap.sh` to put `kcimage` on your `PATH`. (`make` is
+*not* needed on the model instance — `kcimage install` bakes everything the AMI
+needs.)
 
 ```bash
 KIB_VERSION=$(curl -fsSL https://api.github.com/repos/pondhawk/keycloak-image-builder/releases/latest \
@@ -48,147 +102,50 @@ Confirm it's on your `PATH`:
 kcimage version
 ```
 
-To upgrade the toolkit later, download a newer release and run `sudo ./bootstrap.sh`
-again — it overwrites in place, so `kcimage` always points at the latest (no
-versioned path ever lands in your shell history).
+`bootstrap.sh` also creates **`~/keycloak-custom-providers/`** — drop custom
+provider JARs (themes ship as JARs too) there before installing and every bake
+picks them up. To upgrade the toolkit later, download a newer release and run
+`sudo ./bootstrap.sh` again; it overwrites in place, so `kcimage` always points
+at the latest and no versioned path ever lands in your shell history.
 
 ---
 
-## Build a golden AMI (the whole workflow)
+## Runbooks
 
-With `kcimage` on your `PATH`, run (as root):
+Each runbook is **self-contained** — read the workflow, copy-paste the commands
+into a terminal on the model instance, top to bottom. Every model-instance
+runbook ends at the same hard stop: **✅ the model is ready for image creation.**
+From there, the **AWS** runbook takes over.
 
-```bash
-# 1. Install/update Keycloak and bake the model (Java, distribution, config,
-#    build, systemd units + boot script, SELinux)
-sudo kcimage install --keycloak-version 26.1.4 --db-vendor mysql
+| Runbook | Use it when you want to… | Runs on |
+|---------|--------------------------|---------|
+| [**Fresh install**](docs/runbooks/fresh-install.md) | Build a golden model from a bare instance for the first time | Model instance |
+| [**Upgrade Keycloak**](docs/runbooks/upgrade-install.md) | Move the model to a new Keycloak version (side-by-side, then re-bake) | Model instance |
+| [**OS patch / AMI refresh**](docs/runbooks/os-patch.md) | Apply OS security patches and re-bake the same Keycloak version | Model instance |
+| [**Clean install**](docs/runbooks/clean-install.md) | Reset the model to a pristine state and start over | Model instance |
+| [**Deploy to AWS**](docs/runbooks/deploy-aws.md) | Create the AMI, wire the launch template + user-data, and roll it to the ASG | AWS |
 
-# 2. Validate the install
-sudo kcimage verify
-
-# 3. Sanitize for imaging (removes secrets/identity, runs the neutrality gate)
-sudo kcimage seal
-
-# 4. Create the AMI in the AWS Console:
-#    EC2 → the model instance → Actions → Image and templates → Create image
-```
-
-Preview any step without changing anything using `--dry-run`:
+Every command supports a preview that changes nothing:
 
 ```bash
 kcimage --dry-run install --keycloak-version 26.1.4 --db-vendor postgres
+kcimage --verbose <command>    # debug-level logging
+kcimage <command> --help       # per-command usage
 ```
 
 ---
 
-## Commands
+## Command reference
 
-### `install` — install/update Keycloak on the model
+The runbooks above are the intended path; this is the flat reference.
 
-```bash
-# Fresh install (mysql-flavoured AMI)
-sudo kcimage install --keycloak-version 26.1.4 --db-vendor mysql
-
-# Postgres-flavoured AMI, and activate this version's symlink
-sudo kcimage install --keycloak-version 26.1.4 --db-vendor postgres --activate
-
-# Update: install a newer version side-by-side (repeat verify/seal, bake a new AMI)
-sudo kcimage install --keycloak-version 26.2.0 --db-vendor mysql --activate
-```
-
-| Option | Meaning |
-|--------|---------|
-| `--keycloak-version <v>` | Keycloak version to install (required), e.g. `26.1.4` |
-| `--db-vendor <v>` | `postgres` or `mysql` (required; baked into the AMI) |
-| `--java-package <pkg>` | OpenJDK package (default `java-21-openjdk-headless`) |
-| `--providers-dir <dir>` | Custom provider JARs (default `~/keycloak-custom-providers`) |
-| `--activate` | Point `/opt/keycloak/current` at this version |
-
-### `verify` — validate the install
-
-```bash
-sudo kcimage verify
-```
-
-Checks Java, the install, `kc.sh build`, rendered config, SELinux Enforcing, and
-the systemd units. Exits non-zero if any check fails.
-
-### `seal` — prepare for imaging
-
-```bash
-# Sanitize this instance and run the neutrality gate
-sudo kcimage seal
-
-# Run ONLY the neutrality gate (no changes) — e.g. to re-confirm before imaging
-kcimage seal --check
-```
-
-Removes secrets, environment-specific config, runtime state, and machine
-identity, then **fails** if anything sensitive remains.
-
-### `clean` — undo an install
-
-```bash
-# Preview exactly what would be removed (changes nothing)
-kcimage --dry-run clean
-
-# Return the model instance to a pristine, ready-to-install state
-sudo kcimage clean --yes
-```
-
-Inverts `install`: removes Keycloak, config, runtime state, the systemd units,
-the boot script, the service user, and the SELinux rules. **Keeps** the toolkit
-(`kcimage`), OpenJDK (unless `--purge-java`), and your
-`~/keycloak-custom-providers`. Idempotent — reports `already clean` when there is
-nothing to remove. Mostly for testing, but handy to reset a model instance.
-
-### `version` — show versions
-
-```bash
-kcimage version
-```
-
----
-
-## Custom providers
-
-Custom Keycloak **providers** are source-controlled separately and baked into
-the build. Put your provider JARs in **`~/keycloak-custom-providers`** (created
-for you by `bootstrap.sh`) on the model instance **before** running `install` —
-it copies every `*.jar` into the active install and `kc.sh build` bakes them in.
-(Custom **themes** are packaged as provider JARs too — best practice — so they go
-here as well.)
-
-```text
-~/keycloak-custom-providers/
-├── my-provider.jar     # your provider JARs (flat; themes-as-JARs go here too)
-└── my-theme.jar
-```
-
-Example:
-
-```bash
-cp my-provider.jar ~/keycloak-custom-providers/
-
-sudo kcimage install --keycloak-version 26.1.4 --db-vendor mysql
-```
-
-The folder lives in the invoking user's home — the same place the release tarball
-is downloaded and extracted — so it is operator-owned and easy to populate by
-hand. Point `install`/`verify` at a different location with `--providers-dir`.
-Because the JARs live outside the versioned install, `install` re-deploys and
-re-builds them on every install/update — so they **carry across Keycloak
-upgrades** automatically.
-
----
-
-## Global flags
-
-```bash
-kcimage --dry-run <command>   # show planned actions, change nothing
-kcimage --verbose <command>   # debug-level logging
-kcimage --help                # usage
-```
+| Command | What it does |
+|---------|--------------|
+| `install` | Install/update Keycloak on the model: Java, distribution, service user, directories, neutral `keycloak.conf`, custom providers, `kc.sh build`, systemd units + boot script, SELinux contexts. Requires `--keycloak-version` and `--db-vendor`. |
+| `verify` | Offline pre-seal validation: Java, install, build, config, SELinux Enforcing, systemd units, and that every custom provider landed. Exits non-zero on any failure. |
+| `seal` | Sanitize the instance for imaging (remove secrets, env config, runtime state, machine identity) and run the neutrality gate. `--check` runs the gate only. |
+| `clean` | Invert `install`, returning the model to a pristine state. Keeps the toolkit, OpenJDK, and `~/keycloak-custom-providers`. `--yes` to apply; mostly for testing. |
+| `version` | Show the KIB, Keycloak-baseline, and Java versions. |
 
 ---
 
@@ -206,5 +163,6 @@ make package   # build the release tarball (kcimage-<version>.tar.gz)
 
 - **Blueprint:** `Keycloak_Image_Builder_Architecture_Blueprint.md`
 - **Decisions (ADRs):** `docs/adr/` (`docs/adr/README.md`)
-- **Runbooks:** `docs/operations/`
+- **Runbooks:** `docs/runbooks/`
+- **Operations (rollback, etc.):** `docs/operations/`
 - **Contributor guidance:** `.claude/`

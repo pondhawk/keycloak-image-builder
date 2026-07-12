@@ -12,6 +12,14 @@ All notable changes to KIB are documented here. Format loosely follows
   JSON→journald logging is unaffected.
 
 ### Changed
+- **README is now a runbook hub.** Rewrote it around Description · Requirements ·
+  Install the toolkit · a Runbooks menu, with self-contained, copy-paste runbooks
+  in `docs/runbooks/` (`fresh-install`, `upgrade-install`, `os-patch`,
+  `clean-install`, `deploy-aws`). Every model-instance runbook ends at "ready for
+  image"; `deploy-aws` carries the AWS-side story (AMI, launch-template `KC_*`
+  user-data, rolling vs scale-to-0 rollout). Requirements corrected: OS floor is
+  **RHEL-family 9+** (really `dnf` + SELinux Enforcing + systemd + `java-21`), and
+  the DB is **any reachable Postgres/MySQL**, not specifically RDS.
 - **Dropped AWS Secrets Manager** for boot config — the node now reads config (incl. DB creds) from launch-template user-data (KEY=VALUE, KC_* names) + private IP from IMDS, split into keycloak.env + tmpfs secrets.env. No AWS CLI, no jq, no VPC endpoint / secrets IAM. ADR-0008 revised with the threat-model rationale.
 - **Scope consolidation:** `kcimage` reduced to four core model-instance
   commands — `install` (now also renders neutral config + runs `kc.sh build` +

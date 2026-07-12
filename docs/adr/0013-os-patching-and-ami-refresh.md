@@ -74,8 +74,9 @@ Type B, which exists only for schema-migrating Keycloak upgrades.
 
 A regular patch cadence (routine monthly + out-of-band for critical CVEs):
 patch model → rebuild AMI → rolling refresh. The step-by-step procedure lives in
-`docs/operations/os-patching.md` (a follow-on deliverable, like the rollback
-runbook).
+[`docs/runbooks/os-patch.md`](../runbooks/os-patch.md) (model-side) and
+[`docs/runbooks/deploy-aws.md`](../runbooks/deploy-aws.md) §C.2 (the rolling
+refresh).
 
 ## Consequences
 
@@ -103,5 +104,6 @@ runbook).
 
 - Bake sequence and AMI tags → ADR-0004.
 - Keycloak-version upgrades (scale-to-0) → ADR-0006.
-- OS-patch runbook → `docs/operations/os-patching.md` (to be written).
+- OS-patch runbook → [`docs/runbooks/os-patch.md`](../runbooks/os-patch.md) +
+  [`docs/runbooks/deploy-aws.md`](../runbooks/deploy-aws.md) §C.2.
 - Cluster/session resilience during refresh → ADR-0009.
