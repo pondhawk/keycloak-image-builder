@@ -93,13 +93,16 @@ extract it, and run `bootstrap.sh` to put `kcimage` on your `PATH`. (`make` is
 *not* needed on the model instance — `kcimage install` bakes everything the image
 needs.)
 
+Open the latest release and copy the `kcimage-<version>.tar.gz` asset URL:
+
+<https://github.com/pondhawk/keycloak-image-builder/releases/latest>
+
+Then paste it in place of `<URL>` below:
+
 ```bash
-KIB_VERSION=$(curl -fsSL https://api.github.com/repos/pondhawk/keycloak-image-builder/releases/latest \
-  | sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p')
-curl -fsSL -o kcimage.tar.gz \
-  "https://github.com/pondhawk/keycloak-image-builder/releases/download/v${KIB_VERSION}/kcimage-${KIB_VERSION}.tar.gz"
+curl -fsSL -o kcimage.tar.gz "<URL>"
 tar xzf kcimage.tar.gz
-cd "kcimage-${KIB_VERSION}"
+cd kcimage-*/
 sudo ./bootstrap.sh          # installs kcimage to /usr/local/bin
 ```
 
