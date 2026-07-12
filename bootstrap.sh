@@ -27,4 +27,15 @@ install -m 0644 VERSION "$DESTDIR$LIBDIR/VERSION"
 install -d "$DESTDIR$BINDIR"
 install -m 0755 scripts/kcimage "$DESTDIR$BINDIR/kcimage"
 
+# Create the operator's custom-providers folder in their home (real installs
+# only; works under sudo, where $HOME would be root's).
+if [[ -z "$DESTDIR" ]]; then
+  user="${SUDO_USER:-${USER:-root}}"
+  uhome="$(getent passwd "$user" 2> /dev/null | cut -d: -f6)"
+  [[ -n "$uhome" ]] || uhome="${HOME:-/root}"
+  install -d "$uhome/keycloak-custom-providers"
+  chown "$user:" "$uhome/keycloak-custom-providers" 2> /dev/null || true
+  echo "custom providers: put JARs in $uhome/keycloak-custom-providers"
+fi
+
 echo "installed kcimage $(cat VERSION) to $DESTDIR$BINDIR/kcimage"

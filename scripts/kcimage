@@ -31,7 +31,7 @@ source "$KCIMAGE_LIB_DIR/selinux.sh"
 
 # --- Known subcommands (blueprint §11) ---
 # KIB is a model-instance build tool: install/update → verify → prepare-for-image.
-readonly KCIMAGE_COMMANDS=(install verify seal version)
+readonly KCIMAGE_COMMANDS=(install verify seal clean version)
 
 usage() {
   local cmds

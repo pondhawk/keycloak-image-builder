@@ -17,6 +17,7 @@ Options:
   --db-vendor <v>            postgres | mysql (required; baked into the AMI)
   --java-package <pkg>       OpenJDK package (default: java-${KIB_JAVA_MAJOR}-openjdk-headless)
   --etc-dir <dir>            Config dir (default: /etc/keycloak)
+  --providers-dir <dir>      Custom provider JARs (default: ~/keycloak-custom-providers)
   --activate                 Point /opt/keycloak/current at this version
   -h, --help                 Show this help
 EOF
@@ -76,7 +77,6 @@ _ensure_user() {
 _ensure_dirs() {
   local etc_dir="$1"
   run install -d -o root -g root -m 0755 "$KC_OPT"
-  run install -d -o root -g root -m 0755 "$KC_CUSTOM" "$KC_CUSTOM/providers"
   run install -d -o root -g "$KC_GROUP" -m 0750 "$etc_dir"
   run install -d -o "$KC_USER" -g "$KC_GROUP" -m 0750 \
     "$KC_VAR_LIB" "$KC_VAR_LOG" "$KC_VAR_BACKUPS"
@@ -158,17 +158,18 @@ _install_render_conf() {
   log_info "rendered $etc_dir/keycloak.conf (db=$vendor)"
 }
 
-# Deploy source-controlled custom provider JARs into the active install before
-# the build so they are baked in (ADR-0001, blueprint §8). No-op if none present.
-# Themes ship as provider JARs too (best practice), so only providers is used.
-# Because the assets live outside the versioned install, they are re-deployed on
-# every install/update and thus carry across Keycloak upgrades.
+# Deploy custom provider JARs from the operator's providers dir into the active
+# install before the build so they are baked in (ADR-0001). No-op if none. The
+# source lives in the operator's home (~/keycloak-custom-providers by default),
+# so JARs are re-deployed on every install/update and carry across upgrades.
+# Themes ship as provider JARs too (best practice), so only JARs are handled.
 _install_deploy_custom() {
-  local src="$KC_CUSTOM/providers" dst="$KC_CURRENT/providers" entries
-  entries=("$src"/*)
+  local src="$1" dst="$KC_CURRENT/providers" entries
+  entries=("$src"/*.jar)
   [[ -e "${entries[0]}" ]] || return 0
   log_info "deploying custom providers from $src"
-  run cp -a "$src/." "$dst/"
+  run install -d "$dst"
+  run cp -a "$src"/*.jar "$dst/"
 }
 
 # Run kc.sh build against the active install, using the neutral keycloak.conf.
@@ -242,7 +243,7 @@ _maybe_set_current() {
 }
 
 cmd_install() {
-  local kc_version="" vendor="" etc_dir="$KC_ETC" activate=0
+  local kc_version="" vendor="" etc_dir="$KC_ETC" activate=0 providers_dir=""
   local java_pkg="java-${KIB_JAVA_MAJOR}-openjdk-headless"
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -265,6 +266,10 @@ cmd_install() {
       --activate)
         activate=1
         shift
+        ;;
+      --providers-dir)
+        providers_dir="${2:-}"
+        shift 2
         ;;
       -h | --help)
         _install_usage
@@ -303,7 +308,7 @@ cmd_install() {
   _install_keycloak_dist "$kc_version" || return $?
   _maybe_set_current "$kc_version" "$activate" || return $?
   _install_render_conf "$vendor" "$etc_dir" || return $?
-  _install_deploy_custom || return $?
+  _install_deploy_custom "${providers_dir:-$(kib_user_home)/keycloak-custom-providers}" || return $?
   _install_build "$etc_dir" || return $?
   _install_systemd || return $?
   _install_selinux || return $?

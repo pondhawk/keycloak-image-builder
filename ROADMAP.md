@@ -13,6 +13,7 @@ runbooks, **not** by `kcimage`.
 | `install` | Install/update Keycloak on the model: Java, distribution, dirs, service user, neutral `keycloak.conf`, `kc.sh build`, SELinux contexts | ✅ |
 | `verify` | Validate the install: Java, install, build, config, SELinux Enforcing, systemd units | ✅ |
 | `seal` | Sanitize for imaging + neutrality gate (`--check` runs the gate only) | ✅ |
+| `clean` | Invert `install` — return the model to a pristine state (testing); `--yes` to apply | ✅ |
 | `version` | Toolkit + Keycloak/Java baseline versions | ✅ |
 
 The typical model-instance bake:
@@ -39,7 +40,8 @@ kcimage seal         # then create the AMI in the AWS Console
 ## Note on scope
 
 The blueprint §19 listed 11 milestones and §11 an 18-command CLI. We consolidated
-to the 4 commands above: the pets-oriented commands (`start`/`stop`/`restart`/
+to the four core commands above (plus `clean`, a testing convenience): the
+pets-oriented commands (`start`/`stop`/`restart`/
 `status`/`logs`/`journal`/`cluster`/`upgrade`/`rollback`/`health`/`check`/
 `configure`/`build`/`selinux`) were dropped or folded, because in the cattle /
 immutable-AMI model nobody runs commands on production nodes — the toolkit's job

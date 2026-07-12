@@ -38,7 +38,7 @@ The bake sequence, driven by `kcimage` on the golden instance:
 1. `install` — lay down Java, the Keycloak version, scripts, units, policy.
 2. `configure` — render the **neutral** `keycloak.conf` (build-time options,
    including `db=<vendor>`); no environment-specific values.
-3. deploy custom assets from `/opt/keycloak-custom` into `/opt/keycloak/current`.
+3. deploy custom provider JARs from `~/keycloak-custom-providers` into `/opt/keycloak/current`.
 4. `build` — run `kc.sh build` for the selected `db.vendor`, producing the
    optimized server.
 5. `verify` — validate the built server (§12 checks that do not require a live

@@ -23,8 +23,8 @@ readonly KIB_JAVA_MAJOR="21"
 # --- Filesystem layout (ADR-0001) ---
 readonly KC_OPT="/opt/keycloak"
 readonly KC_CURRENT="/opt/keycloak/current"
-readonly KC_CUSTOM="/opt/keycloak-custom"
 readonly KC_ETC="/etc/keycloak"
+readonly KC_RUN="/run/keycloak"
 readonly KC_VAR_LIB="/var/lib/keycloak"
 readonly KC_VAR_LOG="/var/log/keycloak"
 readonly KC_VAR_BACKUPS="/var/backups/keycloak"
@@ -38,6 +38,14 @@ readonly KEYCLOAK_DOWNLOAD_BASE="https://github.com/keycloak/keycloak/releases/d
 
 # is_dry_run — true when --dry-run is active.
 is_dry_run() { [[ "${DRY_RUN:-0}" == "1" ]]; }
+
+# kib_user_home — home dir of the invoking user (works under sudo, where $HOME
+# would be root's). Used to locate ~/keycloak-custom-providers.
+kib_user_home() {
+  local u="${SUDO_USER:-${USER:-root}}" h
+  h="$(getent passwd "$u" 2> /dev/null | cut -d: -f6)" || true
+  if [[ -n "$h" ]]; then printf '%s' "$h"; else printf '%s' "${HOME:-/root}"; fi
+}
 
 # join_sp <items...> — join arguments with single spaces (the dispatcher sets
 # IFS=\n\t, so "${arr[*]}" would otherwise join with newlines in messages).
