@@ -148,6 +148,34 @@ kcadmin version
 
 ---
 
+## Custom providers
+
+Custom Keycloak **providers** are source-controlled separately and baked into
+the build. Put your provider JARs on the model instance under
+`/opt/keycloak-custom/providers` **before** running `install` — it copies them
+into the active install and `kc.sh build` bakes them in. (Custom **themes** are
+packaged as provider JARs too — best practice — so they go here as well.)
+
+```text
+/opt/keycloak-custom/
+└── providers/    # your provider JARs (themes packaged as JARs go here too)
+```
+
+Example:
+
+```bash
+sudo mkdir -p /opt/keycloak-custom/providers
+sudo cp my-provider.jar /opt/keycloak-custom/providers/
+
+sudo ./scripts/kcadmin install --keycloak-version 26.1.4 --db-vendor mysql
+```
+
+Because the assets live outside the versioned install, `install` re-deploys and
+re-builds them on every install/update — so they **carry across Keycloak
+upgrades** automatically.
+
+---
+
 ## Global flags
 
 ```bash

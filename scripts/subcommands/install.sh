@@ -76,8 +76,7 @@ _ensure_user() {
 _ensure_dirs() {
   local etc_dir="$1"
   run install -d -o root -g root -m 0755 "$KC_OPT"
-  run install -d -o root -g root -m 0755 \
-    "$KC_CUSTOM" "$KC_CUSTOM/themes" "$KC_CUSTOM/providers" "$KC_CUSTOM/scripts"
+  run install -d -o root -g root -m 0755 "$KC_CUSTOM" "$KC_CUSTOM/providers"
   run install -d -o root -g "$KC_GROUP" -m 0750 "$etc_dir"
   run install -d -o "$KC_USER" -g "$KC_GROUP" -m 0750 \
     "$KC_VAR_LIB" "$KC_VAR_LOG" "$KC_VAR_BACKUPS"
@@ -157,6 +156,19 @@ _install_render_conf() {
   printf '%s\n' "$rendered" > "$etc_dir/keycloak.conf"
   chmod 0640 "$etc_dir/keycloak.conf"
   log_info "rendered $etc_dir/keycloak.conf (db=$vendor)"
+}
+
+# Deploy source-controlled custom provider JARs into the active install before
+# the build so they are baked in (ADR-0001, blueprint §8). No-op if none present.
+# Themes ship as provider JARs too (best practice), so only providers is used.
+# Because the assets live outside the versioned install, they are re-deployed on
+# every install/update and thus carry across Keycloak upgrades.
+_install_deploy_custom() {
+  local src="$KC_CUSTOM/providers" dst="$KC_CURRENT/providers" entries
+  entries=("$src"/*)
+  [[ -e "${entries[0]}" ]] || return 0
+  log_info "deploying custom providers from $src"
+  run cp -a "$src/." "$dst/"
 }
 
 # Run kc.sh build against the active install, using the neutral keycloak.conf.
@@ -296,6 +308,7 @@ cmd_install() {
   _install_keycloak_dist "$kc_version" || return $?
   _maybe_set_current "$kc_version" "$activate" || return $?
   _install_render_conf "$vendor" "$etc_dir" || return $?
+  _install_deploy_custom || return $?
   _install_build "$etc_dir" || return $?
   _install_systemd || return $?
   _install_selinux || return $?

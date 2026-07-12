@@ -80,11 +80,9 @@ Three roles, each in its own tree so none can be mistaken for another:
     keycloak-<version>/
     current -> keycloak-<version>
 
-# Role B — custom source assets (source-controlled; deployed into current/ before build)
+# Role B — custom provider JARs (source-controlled; deployed into current/ before build)
 /opt/keycloak-custom/
-    themes/
-    providers/
-    scripts/
+    providers/     # themes ship as provider JARs too (best practice)
 
 # Config
 /etc/keycloak/
@@ -135,10 +133,9 @@ Three roles, each in its own tree so none can be mistaken for another:
 
 - Introduces a new top-level path (`/opt/keycloak-custom`) that must be created,
   owned, and SELinux-labeled by the installer (addressed in the SELinux ADR).
-- Two "scripts" locations exist — `/opt/keycloak-custom/scripts` (operator
-  provider scripts deployed into the install) versus the toolkit's own
-  `scripts/` in the repo (installed as `kcadmin`). Documentation must keep the
-  distinction explicit.
+- `/opt/keycloak-custom` holds only `providers/` (custom provider JARs; themes
+  ship as JARs too, per best practice). The earlier `themes/` and `scripts/`
+  subdirectories were dropped to keep a single, unambiguous deploy path.
 - The `current` symlink is meaningful only on the golden instance; on ASG
   nodes it is effectively frozen at bake time. Operators must understand that
   swapping it on a live production node is not the supported upgrade path

@@ -120,10 +120,8 @@ keycloak-admin-tool/
     keycloak-<version>/
     current -> keycloak-<version>
 
-/opt/keycloak-custom/                 (Role B: source-controlled custom assets)
-    themes/
-    providers/
-    scripts/
+/opt/keycloak-custom/                 (Role B: source-controlled custom provider JARs)
+    providers/                        (themes ship as provider JARs too)
 
 /etc/keycloak/                        (config)
     keycloak.conf
@@ -176,12 +174,11 @@ Automatically removed after successful initialization.
 
 # 8. Customizations
 
-Custom themes and providers are source-controlled outside the Keycloak
-installation.
+Custom providers are source-controlled outside the Keycloak installation.
+Themes ship as provider JARs too (best practice), so they go here as well.
 
 Store source assets under:
 
--   /opt/keycloak-custom/themes
 -   /opt/keycloak-custom/providers
 
 Deploy into the active installation (`/opt/keycloak/current`) before
