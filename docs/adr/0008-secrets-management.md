@@ -17,45 +17,74 @@ KDT handles are:
   for correctness (ADR-0002, ADR-0005).
 
 The blueprint fixes the store as **AWS Secrets Manager**. This ADR pins the rest:
-what is a secret vs. plain config, how a secret reaches the Keycloak process
-without ever touching persistent disk or the AMI, the IAM model, rotation, and
-the DB-endpoint classification that finalizes the rollback runbook's Step 4.
+a **single JSON secret per cluster** holding all environment-specific config, a
+non-sensitive **user-data pointer** to it (so multiple clusters coexist), how the
+values reach the Keycloak process without ever touching persistent disk or the
+AMI, the IAM model, and rotation.
 
 Keycloak can read sensitive options either from **environment variables** or
 from a **config keystore** (`KC_CONFIG_KEYSTORE`). The choice affects complexity.
 
 ## Decision
 
-### What is a secret, and what is not
+### One JSON secret per cluster
 
-| Value | Classification | Source |
-|-------|----------------|--------|
-| DB app-user **username + password** | **Secret** | Secrets Manager: `keycloak/db` |
-| Bootstrap admin username + password | **Secret** (transient) | Secrets Manager: `keycloak/bootstrap-admin` |
-| RDS **endpoint / host / port / dbname** | **Not secret** | launch-template user-data → `keycloak.env` |
-| ALB hostname (`KC_HOSTNAME`), JVM sizing | **Not secret** | user-data → `keycloak.env` |
+All of a cluster's environment-specific configuration — endpoint, hostname, JVM
+sizing, **and** credentials — lives in a **single JSON secret per cluster** in
+AWS Secrets Manager, e.g. `keycloak/<cluster>/config`:
 
-The **RDS endpoint is not a secret.** This finalizes ADR-0007 Step 4: because
-the endpoint lives in non-secret config, the **rename-swap** rollback method
-(rename the restored instance back to the original identifier) preserves the
-endpoint and requires **no change to any secret**. `KC_DB_URL` is composed at
-boot from the non-secret host/port/dbname plus the vendor (ADR-0003).
+```json
+{
+  "db_url": "jdbc:mysql://cluster-a-rds.internal:3306/keycloak",
+  "db_username": "keycloak_app",
+  "db_password": "••••••",
+  "hostname": "https://auth-a.example.com",
+  "java_opts_append": "-Xms512m -Xmx1024m",
+  "bootstrap_admin_username": "••••••",
+  "bootstrap_admin_password": "••••••"
+}
+```
 
-### Delivery: fetch at boot → tmpfs env file → never persistent disk
+**One secret per cluster** (not a fixed convention name) so multiple Keycloak
+clusters can coexist in one AWS account without colliding.
+
+### The user-data pointer (a name, not a credential)
+
+Each cluster's launch template conveys **only the secret's name/ARN** in
+user-data — a non-sensitive pointer, never a credential:
+
+```
+KDT_SECRET_ID=keycloak/<cluster>/config
+```
+
+Putting a *name* in user-data is safe; putting a *password* there would not be
+(readable via IMDS/SSRF and by anyone with launch-template read access). So the
+password never goes in user-data — only the pointer does. This keeps the model
+flexible for N clusters while every actual value stays in Secrets Manager.
+
+### Per-instance facts from IMDS
+
+The node's **private IP** (JGroups bind address, ADR-0009) is unique per
+instance, so it is read from **IMDSv2** at boot — not from the shared cluster
+secret.
+
+### Delivery: fetch one secret → split by sensitivity → tmpfs for secrets
 
 The `keycloak-config.service` root oneshot (ADR-0005) does, on every boot:
 
-1. Fetch both secrets from Secrets Manager using the instance's IAM role via
-   **IMDSv2**.
-2. Render **non-secret** runtime config into `/etc/keycloak/keycloak.env`.
-3. Render **secret** values into `/run/keycloak/secrets.env` on **tmpfs**
-   (memory-backed), mode `0640`, owner `root:keycloak`.
-4. `keycloak.service` consumes **both** as `EnvironmentFile=` entries.
+1. Read `KDT_SECRET_ID` from user-data and the private IP from **IMDSv2**.
+2. `secretsmanager:GetSecretValue` on that **one** secret (instance IAM role).
+3. Write **non-secret** fields (`db_url`, `hostname`, `java_opts_append`) plus the
+   private IP into `/etc/keycloak/keycloak.env`.
+4. Write **secret** fields (`db_username`, `db_password`, and — only when the DB
+   is uninitialized — the bootstrap admin) into `/run/keycloak/secrets.env` on
+   **tmpfs**, mode `0640`, owner `root:keycloak`.
+5. `keycloak.service` consumes both as `EnvironmentFile=` entries.
 
-Because `/run` is tmpfs, secrets **never hit persistent disk** and vanish on
-stop/terminate — so they cannot be captured into an AMI and `ami-clean` has
-nothing secret to scrub on disk. Secrets are not written into
-`/etc/keycloak/keycloak.env` (which is only non-secret config).
+Because `/run` is tmpfs, secrets **never hit persistent disk**, cannot be
+captured into an AMI, and vanish on stop/terminate. `db.vendor` is *not* in the
+secret — it is build-time, baked into the per-vendor AMI (ADR-0003); the
+`db_url`'s `jdbc:` prefix must match that vendor.
 
 ### Mechanism: environment variables, not a config keystore
 
@@ -68,17 +97,19 @@ tmpfs + permissions + no-logging controls below as compensating protections.
 
 ### Bootstrap admin handling
 
-Fetched only when the DB is uninitialized; written to `/run/keycloak/bootstrap.env`
-(tmpfs), consumed by the init step, then removed (ADR-0002/0005). Normally a
-no-op here (populated DB), and doubly safe by being tmpfs-only.
+The bootstrap admin username/password are **fields in the same cluster secret**.
+They are written to `/run/keycloak/secrets.env` (tmpfs) only when the DB is
+uninitialized, consumed by the init step, then cleared (ADR-0002/0005). Normally
+a no-op here (populated DB), and doubly safe by being tmpfs-only.
 
 ### IAM (least privilege)
 
 - EC2 nodes run under an **instance profile / IAM role** — no static AWS keys on
   the instance.
-- The role allows only `secretsmanager:GetSecretValue` on the **specific secret
-  ARNs** (`keycloak/db`, `keycloak/bootstrap-admin`), plus `kms:Decrypt` on the
-  CMK if those secrets use a customer-managed key.
+- The role allows only `secretsmanager:GetSecretValue` on **that cluster's secret
+  ARN**, plus `kms:Decrypt` on the CMK if it uses a customer-managed key.
+  Per-cluster scoping means one cluster's node role cannot read another cluster's
+  secret, even though the name is known (it is in user-data).
 - **IMDSv2 required** (tokens, restricted hop limit) so metadata/role creds are
   not trivially exfiltrated.
 
@@ -103,8 +134,9 @@ access is itself auditable via CloudTrail.
 
 - Secrets never touch persistent disk or the AMI: tmpfs delivery makes AMI
   neutrality structural rather than reliant on `ami-clean` scrubbing.
-- Classifying the endpoint as non-secret makes rollback simpler and finalizes
-  the runbook's riskiest step (rename-swap, no secret edits).
+- One secret per cluster + a name-only user-data pointer is both flexible
+  (N clusters) and secure (no credential ever in user-data); boot is a single
+  fetch.
 - Least-privilege IAM + IMDSv2 + no static keys keeps the blast radius of a
   compromised node small.
 - Environment-variable delivery keeps the mechanism simple and debuggable
@@ -117,13 +149,16 @@ access is itself auditable via CloudTrail.
   keystore would reduce this but at a complexity cost we chose not to pay.
 - DB-password rotation requires a node cycle rather than a hot reload — cheap
   under ASG, but not instantaneous.
-- Two Secrets Manager entries and a user-data contract are moving parts that
-  must be provisioned per environment (documented, not toolkit-created).
+- Per cluster you provision one JSON secret + one user-data pointer + one IAM
+  role (documented, not toolkit-created). Non-secret config (endpoint, hostname)
+  living inside a Secrets Manager secret is slightly unconventional, but buys the
+  single-fetch simplicity.
 
 ### Notes
 
 - Boot orchestration and unit wiring → ADR-0005.
 - Config layering (secret vs non-secret) → ADR-0002.
-- `KC_DB_URL` composition and vendor split → ADR-0003.
-- This ADR finalizes ADR-0007 Step 4 (endpoint is non-secret; rename-swap needs
-  no secret change).
+- Vendor split (`db.vendor` is build-time, not in the secret) → ADR-0003.
+- ADR-0007 Step 4 (rename-swap): rename-swap preserves the endpoint, so the
+  secret's `db_url` stays valid and needs **no edit**; a true repoint means
+  editing the secret's `db_url`.
