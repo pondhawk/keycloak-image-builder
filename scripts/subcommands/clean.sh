@@ -102,6 +102,7 @@ cmd_clean() {
     esac
   done
 
+  guard_not_live_node "clean" || return $?
   if ! is_dry_run && [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
     log_error "clean must run as root"
     return "$EX_CONFIG"

@@ -112,6 +112,12 @@ Confirm it's on your `PATH`:
 kcimage version
 ```
 
+You'll run most commands with `sudo` (install/seal/clean need root). `bootstrap.sh`
+symlinks `/usr/sbin/kcimage → /usr/local/bin/kcimage` so `sudo kcimage` resolves
+even on hardened images that keep `/usr/local/bin` out of sudo's `secure_path`
+(otherwise you'd get `sudo: kcimage: command not found` — use the full path
+`sudo /usr/local/bin/kcimage …` as a fallback).
+
 `bootstrap.sh` also creates **`~/keycloak-custom-providers/`** — drop custom
 provider JARs (themes ship as JARs too) there before installing and every bake
 picks them up. To upgrade the toolkit later, download a newer release and run
@@ -147,7 +153,10 @@ The mutating commands (`install`, `upgrade`, `seal`, `clean`) **prompt for
 confirmation** before doing anything. There is deliberately no `--yes`/`--force`
 bypass — a flag like that, sitting in your shell history, would defeat the
 prompt on an accidental up-arrow re-run. Use `--dry-run` to preview
-non-interactively; automation is intentionally not a goal for these.
+non-interactively; automation is intentionally not a goal for these. They also
+**refuse to run while `keycloak.service` is active** — that means you're on a
+live cluster node (the toolkit is baked into the image), not the model instance,
+so they stop rather than damage it.
 
 ---
 

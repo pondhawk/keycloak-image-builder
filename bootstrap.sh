@@ -27,6 +27,14 @@ install -m 0644 VERSION "$DESTDIR$LIBDIR/VERSION"
 install -d "$DESTDIR$BINDIR"
 install -m 0755 scripts/kcimage "$DESTDIR$BINDIR/kcimage"
 
+# Also expose kcimage on sudo's secure_path. /usr/sbin is in the default (and
+# most hardened) secure_path; /usr/local/bin often is not, which makes
+# `sudo kcimage` fail with "command not found". A symlink here fixes that
+# without editing sudoers (which would override a deliberate hardening choice).
+SBINDIR="/usr/sbin"
+install -d "$DESTDIR$SBINDIR"
+ln -sfn "$BINDIR/kcimage" "$DESTDIR$SBINDIR/kcimage"
+
 # Create the operator's custom-providers folder in their home (real installs
 # only; works under sudo, where $HOME would be root's).
 if [[ -z "$DESTDIR" ]]; then
@@ -39,3 +47,4 @@ if [[ -z "$DESTDIR" ]]; then
 fi
 
 echo "installed kcimage $(cat VERSION) to $DESTDIR$BINDIR/kcimage"
+echo "  (also symlinked at $DESTDIR$SBINDIR/kcimage so 'sudo kcimage' works)"

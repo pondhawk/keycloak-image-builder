@@ -31,6 +31,13 @@ setup() {
   [[ "$output" == *"26.x or newer"* ]]
 }
 
+@test "install refuses on a running (live) node" {
+  export KIB_ASSUME_KEYCLOAK_ACTIVE=1
+  run "$KCIMAGE" install --keycloak-version 26.1.4 --db-vendor mysql
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"live node"* ]]
+}
+
 @test "install rejects an invalid vendor" {
   run "$KCIMAGE" install --keycloak-version 26.1.4 --db-vendor oracle
   [ "$status" -ne 0 ]

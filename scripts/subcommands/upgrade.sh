@@ -66,6 +66,7 @@ cmd_upgrade() {
     return "$EX_USAGE"
   }
   _install_validate_version "$kc_version" || return "$EX_USAGE"
+  guard_not_live_node "upgrade" || return $?
   _install_check_privileges || return "$EX_CONFIG"
 
   local vendor
