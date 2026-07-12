@@ -183,7 +183,11 @@ _install_deploy_custom() {
   [[ -e "${entries[0]}" ]] || return 0
   log_info "deploying custom providers from $src"
   run install -d "$dst"
-  run cp -a "$src"/*.jar "$dst/"
+  # Use install (not cp -a): the keycloak user loads these at runtime, so they
+  # must be root-owned and world-readable — cp -a would preserve the operator's
+  # ownership/mode from their home dir (possibly unreadable, and it would bake
+  # the operator's uid into the image).
+  run install -m 0644 "$src"/*.jar "$dst/"
 }
 
 # Run kc.sh build against the active install, using the neutral keycloak.conf.
