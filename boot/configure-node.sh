@@ -57,7 +57,9 @@ fi
 # --- prepare target files ---
 mkdir -p "$ETC" "$RUN"
 chmod 0750 "$RUN"
-[[ "$(id -u)" -eq 0 ]] && chown root:keycloak "$RUN" 2> /dev/null || true
+if [[ "$(id -u)" -eq 0 ]]; then
+  chown root:keycloak "$RUN" 2> /dev/null || true
+fi
 
 env_file="$ETC/keycloak.env"
 sec_file="$RUN/secrets.env"
@@ -65,7 +67,9 @@ umask 027
 : > "$env_file"
 : > "$sec_file"
 chmod 0640 "$env_file" "$sec_file"
-[[ "$(id -u)" -eq 0 ]] && chown root:keycloak "$sec_file" 2> /dev/null || true
+if [[ "$(id -u)" -eq 0 ]]; then
+  chown root:keycloak "$sec_file" 2> /dev/null || true
+fi
 
 # JGroups bind address comes from IMDS, not user-data.
 printf 'KC_CACHE_EMBEDDED_NETWORK_BIND_ADDRESS=%s\n' "$NODE_PRIVATE_IP" >> "$env_file"
