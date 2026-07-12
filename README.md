@@ -24,44 +24,52 @@ cattle). It does exactly three things on the model instance:
 
 ---
 
-## Install `kcadmin`
+## Get the toolkit onto the model instance
 
-On the model instance, from a published release:
+There is **no install step** — you run `kcadmin` straight from the extracted
+tarball. `kcadmin install` itself bakes everything the AMI needs (Keycloak,
+config, build, systemd units, boot script, SELinux). `make` is **not** required
+on the model instance.
+
+From a published release:
 
 ```bash
 KDT_VERSION=0.1.0
 curl -fsSL -o kcadmin.tar.gz \
   "https://github.com/pondhawk/keycloak-admin-tool/releases/download/v${KDT_VERSION}/kcadmin-${KDT_VERSION}.tar.gz"
 tar xzf kcadmin.tar.gz
-sudo make -C "kcadmin-${KDT_VERSION}" install
+cd "kcadmin-${KDT_VERSION}"
 ```
 
 Or from source:
 
 ```bash
 git clone https://github.com/pondhawk/keycloak-admin-tool.git
-sudo make -C keycloak-admin-tool install
+cd keycloak-admin-tool
 ```
 
-Confirm:
+Confirm it runs:
 
 ```bash
-kcadmin version
+./scripts/kcadmin version
 ```
 
 ---
 
 ## Build a golden AMI (the whole workflow)
 
+From the extracted directory:
+
 ```bash
-# 1. Install/update Keycloak and prepare it (Java, distribution, config, build, SELinux)
-sudo kcadmin install --keycloak-version 26.1.4 --db-vendor mysql
+# 1. Install/update Keycloak and bake the model (Java, distribution, config,
+#    build, systemd units + boot script, SELinux)
+sudo ./scripts/kcadmin install --keycloak-version 26.1.4 --db-vendor mysql
 
 # 2. Validate the install
-sudo kcadmin verify
+sudo ./scripts/kcadmin verify
 
 # 3. Sanitize for imaging (removes secrets/identity, runs the neutrality gate)
-sudo kcadmin ami-clean
+sudo ./scripts/kcadmin ami-clean
 
 # 4. Create the AMI in the AWS Console:
 #    EC2 → the model instance → Actions → Image and templates → Create image
@@ -70,8 +78,11 @@ sudo kcadmin ami-clean
 Preview any step without changing anything using `--dry-run`:
 
 ```bash
-kcadmin --dry-run install --keycloak-version 26.1.4 --db-vendor postgres
+./scripts/kcadmin --dry-run install --keycloak-version 26.1.4 --db-vendor postgres
 ```
+
+(Examples below write `kcadmin` for brevity; run it as `./scripts/kcadmin` from
+the extracted directory, or add it to your `PATH`.)
 
 ---
 

@@ -30,6 +30,8 @@ readonly KC_VAR_LOG="/var/log/keycloak"
 readonly KC_VAR_BACKUPS="/var/backups/keycloak"
 readonly KC_USER="keycloak"
 readonly KC_GROUP="keycloak"
+readonly KC_SYSTEMD_DIR="/usr/lib/systemd/system"
+readonly KC_BOOT_DIR="/usr/local/lib/keycloak"
 
 # --- Keycloak distribution source ---
 readonly KEYCLOAK_DOWNLOAD_BASE="https://github.com/keycloak/keycloak/releases/download"

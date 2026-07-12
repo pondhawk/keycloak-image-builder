@@ -118,9 +118,10 @@ _install_keycloak_dist() {
   log_info "installed: $target"
 }
 
-_install_resolve_templates() {
-  local d
-  for d in "$KCADMIN_BIN_DIR/../templates" "$KCADMIN_LIB_DIR/../templates"; do
+# _install_share_dir <name> — echo the resolved repo/tarball or installed dir.
+_install_share_dir() {
+  local name="$1" d
+  for d in "$KCADMIN_BIN_DIR/../$name" "$KCADMIN_LIB_DIR/../$name"; do
     if [[ -d "$d" ]]; then
       readlink -f "$d"
       return 0
@@ -133,7 +134,7 @@ _install_resolve_templates() {
 _install_render_conf() {
   local vendor="$1" etc_dir="$2"
   local tpl_dir src rendered directives
-  tpl_dir="$(_install_resolve_templates)" || {
+  tpl_dir="$(_install_share_dir templates)" || {
     log_error "templates directory not found"
     return "$EX_CONFIG"
   }
@@ -182,6 +183,44 @@ _install_selinux() {
     return 0
   fi
   selinux_apply "$fc"
+}
+
+# Place the systemd units + boot artifacts and enable the service (ADR-0005).
+# Baked into the AMI so an ASG node boots Keycloak automatically. This is why
+# there is no separate "install the toolkit" step — `install` bakes the runtime.
+_install_systemd() {
+  local sd_src boot_src tpl_src
+  sd_src="$(_install_share_dir systemd)" || {
+    log_error "systemd/ directory not found"
+    return "$EX_CONFIG"
+  }
+  boot_src="$(_install_share_dir boot)" || {
+    log_error "boot/ directory not found"
+    return "$EX_CONFIG"
+  }
+  tpl_src="$(_install_share_dir templates)" || {
+    log_error "templates/ directory not found"
+    return "$EX_CONFIG"
+  }
+
+  # Boot script + its env template live together (the unit's ExecStart path).
+  run install -d -m 0755 "$KC_BOOT_DIR"
+  run install -m 0755 "$boot_src/configure-node.sh" "$KC_BOOT_DIR/configure-node.sh"
+  run install -m 0644 "$tpl_src/keycloak.env" "$KC_BOOT_DIR/keycloak.env"
+
+  # systemd units
+  run install -d -m 0755 "$KC_SYSTEMD_DIR"
+  run install -m 0644 "$sd_src/keycloak.service" "$sd_src/keycloak-config.service" \
+    "$KC_SYSTEMD_DIR/"
+
+  if is_dry_run; then
+    log_info "[dry-run] would daemon-reload and enable keycloak-config.service + keycloak.service"
+    return 0
+  fi
+  systemctl daemon-reload || log_warn "systemctl daemon-reload failed"
+  systemctl enable keycloak-config.service keycloak.service > /dev/null 2>&1 ||
+    log_warn "could not enable units (enable them before imaging)"
+  log_info "installed systemd units + boot script"
 }
 
 # Point 'current' at this version on first install or when --activate is given.
@@ -258,6 +297,7 @@ cmd_install() {
   _maybe_set_current "$kc_version" "$activate" || return $?
   _install_render_conf "$vendor" "$etc_dir" || return $?
   _install_build "$etc_dir" || return $?
+  _install_systemd || return $?
   _install_selinux || return $?
   log_info "install complete: $KC_OPT/keycloak-$kc_version (ready to verify + ami-clean)"
 }

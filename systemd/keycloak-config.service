@@ -16,7 +16,7 @@ RuntimeDirectory=keycloak
 RuntimeDirectoryMode=0750
 RuntimeDirectoryPreserve=yes
 # Implemented later; must fetch secrets, render env files, validate, exit non-zero on failure.
-ExecStart=/usr/local/lib/kcadmin/boot/configure-node.sh
+ExecStart=/usr/local/lib/keycloak/configure-node.sh
 
 [Install]
 WantedBy=multi-user.target

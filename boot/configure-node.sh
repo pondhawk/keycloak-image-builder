@@ -8,8 +8,21 @@
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TEMPLATE="$SCRIPT_DIR/../templates/keycloak.env"
 ETC="/etc/keycloak"
+
+# The env template sits beside this script when installed, or under ../templates
+# when run from the repo/tarball.
+TEMPLATE=""
+for cand in "$SCRIPT_DIR/keycloak.env" "$SCRIPT_DIR/../templates/keycloak.env"; do
+  [[ -f "$cand" ]] && {
+    TEMPLATE="$cand"
+    break
+  }
+done
+[[ -n "$TEMPLATE" ]] || {
+  echo "keycloak-config: keycloak.env template not found" >&2
+  exit 1
+}
 
 install -d -m 0750 -o root -g keycloak /run/keycloak
 

@@ -39,9 +39,13 @@ service or a compiled app.
   instance installs that (see `Makefile`, `.github/workflows/`).
 - Milestones and status: `ROADMAP.md`.
 
-## Build / check / test
+## Build / check / test (developer machine only)
 
 - `make check` — ShellCheck + shfmt.
 - `make test` — Bats.
-- `make install` — install `kcadmin` onto a host (golden instance).
 - `make package` — build the release tarball.
+
+There is no `make install`. On the model instance you run `./scripts/kcadmin`
+straight from the extracted tarball; `kcadmin install` bakes the runtime (Java,
+distribution, config, `kc.sh build`, systemd units + boot script, SELinux).
+`make` is not needed on the model instance.

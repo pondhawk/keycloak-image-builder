@@ -42,6 +42,7 @@ setup() {
   [[ "$output" == *"[dry-run]"* ]]
   [[ "$output" == *"would write $BATS_TEST_TMPDIR/etc/keycloak.conf (db=mysql)"* ]]
   [[ "$output" == *"kc.sh build"* ]]
+  [[ "$output" == *"enable keycloak-config.service"* ]]
   [[ "$output" == *"install complete"* ]]
 }
 

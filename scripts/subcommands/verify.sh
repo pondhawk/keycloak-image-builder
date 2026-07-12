@@ -73,7 +73,7 @@ _verify_units() {
 }
 
 cmd_verify() {
-  local etc_dir="$KC_ETC" sd_dir="/usr/lib/systemd/system" home="$KC_CURRENT"
+  local etc_dir="$KC_ETC" sd_dir="$KC_SYSTEMD_DIR" home="$KC_CURRENT"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --etc-dir)

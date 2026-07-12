@@ -1,9 +1,7 @@
-# KDT Makefile — install / check / test / package
-PREFIX ?= /usr/local
-BINDIR  = $(PREFIX)/bin
-LIBDIR  = $(PREFIX)/lib/kcadmin
-SYSTEMD_DIR ?= /usr/lib/systemd/system
-
+# KDT Makefile — developer tooling only (lint / test / package).
+# There is NO 'install' target: the model instance runs `kcadmin` straight from
+# the extracted tarball, and `kcadmin install` bakes the runtime (units, boot
+# script, config, build, SELinux). `make` is not needed on the model instance.
 VERSION := $(shell cat VERSION)
 SH_FILES := scripts/kcadmin $(wildcard lib/*.sh) $(wildcard scripts/subcommands/*.sh) $(wildcard boot/*.sh)
 
@@ -25,27 +23,11 @@ fmt: ## Format scripts in place
 test: ## Run Bats tests
 	bats tests/bats
 
-.PHONY: install
-install: ## Install kcadmin onto this host (golden instance)
-	install -d $(DESTDIR)$(LIBDIR)/lib $(DESTDIR)$(LIBDIR)/subcommands \
-		$(DESTDIR)$(LIBDIR)/templates $(DESTDIR)$(LIBDIR)/boot
-	install -m 0644 lib/*.sh $(DESTDIR)$(LIBDIR)/lib/
-	install -m 0644 scripts/subcommands/*.sh $(DESTDIR)$(LIBDIR)/subcommands/
-	install -m 0755 boot/*.sh $(DESTDIR)$(LIBDIR)/boot/
-	install -d $(DESTDIR)$(LIBDIR)/selinux
-	install -m 0644 selinux/* $(DESTDIR)$(LIBDIR)/selinux/
-	install -m 0644 templates/* $(DESTDIR)$(LIBDIR)/templates/
-	install -m 0644 VERSION $(DESTDIR)$(LIBDIR)/VERSION
-	install -d $(DESTDIR)$(BINDIR)
-	install -m 0755 scripts/kcadmin $(DESTDIR)$(BINDIR)/kcadmin
-	install -d $(DESTDIR)$(SYSTEMD_DIR)
-	install -m 0644 systemd/*.service $(DESTDIR)$(SYSTEMD_DIR)/
-
 .PHONY: package
 package: ## Build the release tarball
 	@tar czf kcadmin-$(VERSION).tar.gz \
 		--transform 's,^,kcadmin-$(VERSION)/,' \
-		scripts lib boot systemd selinux templates Makefile VERSION README.md
+		scripts lib boot systemd selinux templates VERSION README.md
 	@sha256sum kcadmin-$(VERSION).tar.gz > kcadmin-$(VERSION).tar.gz.sha256
 	@echo "built kcadmin-$(VERSION).tar.gz"
 
