@@ -32,7 +32,9 @@ kcimage seal         # then create the AMI in the AWS Console
   exercised by the real-instance test below. **No AWS CLI, no `jq`** — Secrets
   Manager was dropped for user-data (simpler, fewer boot dependencies).
 - Real-instance test on a RHEL-family 10 host, e.g. Rocky Linux 10 (install → verify → seal → image).
-- Operational docs: upgrade runbook, OS-patching runbook (ADR-0013), README polish.
+- ~~Operational docs: upgrade runbook, OS-patching runbook (ADR-0013), README
+  polish~~ — **done**: the README is now a runbook hub, with self-contained
+  runbooks in `docs/runbooks/` (fresh, upgrade, OS-patch, clean, deploy-to-AWS).
 - **Centralized logging** (Fluent Bit → CloudWatch, ADR-0010) — deferred
   follow-up; `fluent-bit` isn't in base RHEL repos, so re-evaluate packaging
   (vs. the CloudWatch agent) when implemented. On-node journald logging works today.

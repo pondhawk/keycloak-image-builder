@@ -15,7 +15,7 @@ service or a compiled app.
 - The **blueprint** (`Keycloak_Image_Builder_Architecture_Blueprint.md`) is
   the top-level spec.
 - The **ADRs** (`docs/adr/`) record all architectural decisions and **win on
-  specifics**. Read them before changing behavior. All 12 are Accepted.
+  specifics**. Read them before changing behavior. All 13 are Accepted.
 - Do not introduce architecture that conflicts with an Accepted ADR; if a change
   needs to, write/supersede an ADR first (blueprint §21).
 
