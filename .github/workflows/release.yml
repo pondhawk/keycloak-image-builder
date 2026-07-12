@@ -1,8 +1,19 @@
 name: Release
 
-# Build the versioned release tarball and publish it as a GitHub Release
-# when a semver tag is pushed (ADR-0004 distribution model).
+# Two ways to cut a release (ADR-0004 distribution model):
+#   1. Actions ▸ Release ▸ Run workflow ▸ pick patch/minor/major  (the easy path:
+#      bumps VERSION, commits, tags, builds, publishes).
+#   2. Push a v* tag by hand  (break-glass: arbitrary version / specific commit).
+# Both build the tarball named to match the resolved version, so tag ==
+# VERSION == tarball name is always consistent.
 on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version part to bump
+        type: choice
+        options: [patch, minor, major]
+        default: patch
   push:
     tags:
       - 'v*'
@@ -15,13 +26,52 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: ver
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            cur="$(cat VERSION)"
+            IFS=. read -r maj min pat <<< "$cur"
+            case "${{ inputs.bump }}" in
+              major) maj=$((maj + 1)); min=0; pat=0 ;;
+              minor) min=$((min + 1)); pat=0 ;;
+              patch) pat=$((pat + 1)) ;;
+            esac
+            version="${maj}.${min}.${pat}"
+            echo "dispatch=1" >> "$GITHUB_OUTPUT"
+          else
+            tag="${GITHUB_REF_NAME}"
+            version="${tag#v}"
+            echo "dispatch=0" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: $version"
+
+      - name: Bump VERSION, commit and tag (dispatch only)
+        if: steps.ver.outputs.dispatch == '1'
+        run: |
+          set -euo pipefail
+          v="${{ steps.ver.outputs.version }}"
+          echo "$v" > VERSION
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add VERSION
+          git commit -m "Release v$v"
+          git tag "v$v"
+          git push origin HEAD:${{ github.ref_name }}
+          git push origin "v$v"
 
       - name: Build tarball
-        run: make package
+        run: make package VERSION="${{ steps.ver.outputs.version }}"
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.ver.outputs.version }}
           files: |
             kcadmin-*.tar.gz
             kcadmin-*.tar.gz.sha256
