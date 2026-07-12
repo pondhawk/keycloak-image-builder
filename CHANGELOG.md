@@ -12,6 +12,13 @@ All notable changes to KIB are documented here. Format loosely follows
   JSON→journald logging is unaffected.
 
 ### Fixed
+- **Admin console now loads in a browser** — baked `quarkus.http.enable-compression=true`
+  into `keycloak.conf`. Stock Keycloak has a bug (keycloak/keycloak#31949, closed
+  "not planned") where static admin-console CSS/JS return **404 when the client
+  sends `Accept-Encoding: gzip`** — which every browser does — so the console
+  won't load. Enabling on-the-fly compression makes those requests return 200
+  (compressed) instead of 404ing on a missing pre-compressed file. Found on the
+  first real deployment behind an ALB.
 - **`seal` neutrality gate no longer false-positives on comments** (found on the
   first real-instance `seal`). The gate scanned all of `/etc/keycloak` including
   comment lines, so the neutral `keycloak.conf` header ("…no endpoints,
