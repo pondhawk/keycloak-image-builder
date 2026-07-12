@@ -164,8 +164,12 @@ _install_render_conf() {
     return 0
   fi
   printf '%s\n' "$rendered" > "$etc_dir/keycloak.conf"
+  # The keycloak service user reads this at runtime via KC_CONFIG_FILE (the
+  # process opens it directly, unlike keycloak.env which systemd reads as root),
+  # so it must be group-owned by keycloak and group-readable.
+  chown "root:$KC_GROUP" "$etc_dir/keycloak.conf"
   chmod 0640 "$etc_dir/keycloak.conf"
-  log_info "rendered $etc_dir/keycloak.conf (db=$vendor)"
+  log_info "rendered $etc_dir/keycloak.conf (db=$vendor, root:$KC_GROUP 0640)"
 }
 
 # Deploy custom provider JARs from the operator's providers dir into the active
