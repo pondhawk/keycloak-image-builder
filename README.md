@@ -22,22 +22,6 @@ cattle). It does exactly three things on the model instance:
 - An existing, populated **RDS** (PostgreSQL or MySQL) for the running cluster
   (KIB never creates databases)
 
-### Model-instance prerequisites
-
-KIB does not install third-party tooling. Install these on the model **before**
-running `kcimage` — they get baked into the AMI and are used at boot for the
-Secrets Manager fetch (ADR-0008):
-
-```bash
-sudo dnf install -y jq unzip
-curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
-unzip -q awscliv2.zip && sudo ./aws/install
-```
-
-`jq` is in the RHEL-family repos; **AWS CLI v2** is the official bundle (it is not
-in the RHEL repos). (A future logging feature will add Fluent Bit as another
-documented prerequisite — ADR-0010.)
-
 ---
 
 ## Install the toolkit

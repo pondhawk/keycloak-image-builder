@@ -35,7 +35,7 @@ not by systemd unit state.
 
 | Unit | Type | Runs as | Purpose |
 |------|------|---------|---------|
-| `keycloak-config.service` | `oneshot`, `RemainAfterExit=yes` | root | Boot-time prep: fetch secrets from Secrets Manager, render `/etc/keycloak/keycloak.env`, validate required runtime config, and handle the conditional bootstrap-admin case. |
+| `keycloak-config.service` | `oneshot`, `RemainAfterExit=yes` | root | Boot-time prep: read user-data + IMDS, write `/etc/keycloak/keycloak.env`, validate required runtime config, and handle the conditional bootstrap-admin case. |
 | `keycloak.service` | `exec` | `keycloak` | The long-running server: `kc.sh start --optimized`. |
 
 Two units (not one) because secret retrieval and writing `/etc/keycloak` need
@@ -58,7 +58,7 @@ keycloak.service             # kc.sh start --optimized
 - `keycloak.service` has `After=keycloak-config.service` and
   `Requires=keycloak-config.service`; if boot config fails, the server does not
   start (fail safe — blueprint principle 5).
-- Both order `After=network-online.target` (RDS + Secrets Manager need network).
+- Both order `After=network-online.target` (Keycloak needs the network for RDS; IMDS is link-local).
 - Both are **enabled but not started** in the AMI (`seal` stops them); the
   ASG instance starts them at boot.
 
@@ -81,7 +81,7 @@ keycloak.service             # kc.sh start --optimized
 ### Bootstrap-admin handling
 
 `keycloak-config.service` provisions `bootstrap.env` (temporary admin creds from
-Secrets Manager) **only when the database is uninitialized**; after successful
+user-data) **only when the database is uninitialized**; after successful
 init the file is removed (ADR-0002). Because this deployment consumes an
 already-populated RDS (project scope), this path is normally a **no-op** — it
 exists for greenfield correctness and is guarded so repeated/parallel boots are

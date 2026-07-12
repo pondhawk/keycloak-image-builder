@@ -2,67 +2,37 @@
 # boot/configure-node.sh — ExecStart of keycloak-config.service (ADR-0005/0008).
 # Baked into the AMI; runs once at boot as root, before keycloak.service.
 #
-# Flow (single JSON secret per cluster, ADR-0008):
-#   1. read KIB_SECRET_ID (the cluster secret's name) from launch-template user-data
-#   2. read this node's private IP from IMDSv2
-#   3. fetch the one cluster secret from Secrets Manager (instance IAM role)
-#   4. split it — non-secret fields -> /etc/keycloak/keycloak.env
-#                 secret fields     -> /run/keycloak/secrets.env (tmpfs)
+# Config (incl. DB credentials) is delivered by launch-template user-data as
+# KEY=VALUE lines using Keycloak's KC_* names (ADR-0008). This script:
+#   1. reads this node's private IP from IMDSv2 (the JGroups bind address)
+#   2. reads user-data from IMDSv2
+#   3. routes each KEY=VALUE line:
+#        secret keys  -> /run/keycloak/secrets.env  (tmpfs, 0640 root:keycloak)
+#        everything else -> /etc/keycloak/keycloak.env
 #
-# Requires (model-instance prerequisites, baked into the AMI — see README):
-#   - AWS CLI v2 (official bundle; not in the RHEL repos)
-#   - jq (from dnf: `dnf install jq`)
-#
-# Never logs secret values. Test hooks (override to skip IMDS/AWS): KIB_ETC,
-# KIB_RUN, KIB_IMDS_BASE, KIB_SECRET_ID, KIB_SECRET_JSON, NODE_PRIVATE_IP.
+# No AWS CLI, no jq. Never logs secret values. Test hooks (skip IMDS): KIB_ETC,
+# KIB_RUN, KIB_IMDS_BASE, KIB_USERDATA, NODE_PRIVATE_IP.
 set -Eeuo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ETC="${KIB_ETC:-/etc/keycloak}"
 RUN="${KIB_RUN:-/run/keycloak}"
 IMDS_BASE="${KIB_IMDS_BASE:-http://169.254.169.254}"
 
-# The env template sits beside this script when installed, or under ../templates
-# when run from the repo/tarball.
-TEMPLATE=""
-for cand in "$SCRIPT_DIR/keycloak.env" "$SCRIPT_DIR/../templates/keycloak.env"; do
-  [[ -f "$cand" ]] && {
-    TEMPLATE="$cand"
-    break
-  }
-done
-[[ -n "$TEMPLATE" ]] || {
-  echo "keycloak-config: keycloak.env template not found" >&2
-  exit 1
+# Keys routed to the tmpfs secrets file; everything else -> keycloak.env.
+_is_secret_key() {
+  case "$1" in
+    KC_DB_USERNAME | KC_DB_PASSWORD | KC_BOOTSTRAP_ADMIN_USERNAME | KC_BOOTSTRAP_ADMIN_PASSWORD) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 _imds_get() { # <token> <path>
   curl -sf -H "X-aws-ec2-metadata-token: $1" "$IMDS_BASE/latest/$2"
 }
 
-# Extract KIB_SECRET_ID=<value> from user-data (optional 'export', optional quotes).
-_secret_id_from_userdata() {
-  local line
-  line=$(grep -E '(^|[^[:alnum:]_])KIB_SECRET_ID=' <<< "$1" | tail -1 || true)
-  line=${line#*KIB_SECRET_ID=}
-  line=${line%%[[:space:]]*}
-  line=${line#[\"\']}
-  line=${line%[\"\']}
-  printf '%s' "$line"
-}
-
-_field() { jq -r --arg k "$1" '.[$k] // ""' <<< "$KIB_SECRET_JSON"; }
-
-_require() {
-  [[ -n "$2" ]] || {
-    echo "keycloak-config: secret missing required field: $1" >&2
-    exit 1
-  }
-}
-
-# --- gather inputs (env overrides win, so tests can skip IMDS/AWS) ---
+# --- gather inputs (env overrides win, so tests can skip IMDS) ---
 imds_token=""
-if [[ -z "${NODE_PRIVATE_IP:-}" || -z "${KIB_SECRET_JSON:-}" ]]; then
+if [[ -z "${NODE_PRIVATE_IP:-}" || -z "${KIB_USERDATA:-}" ]]; then
   imds_token=$(curl -sf -X PUT "$IMDS_BASE/latest/api/token" \
     -H "X-aws-ec2-metadata-token-ttl-seconds: 300") || {
     echo "keycloak-config: IMDSv2 token request failed" >&2
@@ -76,72 +46,59 @@ if [[ -z "${NODE_PRIVATE_IP:-}" ]]; then
     exit 1
   }
 fi
-export NODE_PRIVATE_IP
 
-if [[ -z "${KIB_SECRET_JSON:-}" ]]; then
-  if [[ -z "${KIB_SECRET_ID:-}" ]]; then
-    user_data=$(_imds_get "$imds_token" user-data || true)
-    KIB_SECRET_ID=$(_secret_id_from_userdata "$user_data")
-  fi
-  [[ -n "${KIB_SECRET_ID:-}" ]] || {
-    echo "keycloak-config: KIB_SECRET_ID not found in env or user-data" >&2
-    exit 1
-  }
-  if [[ -z "${AWS_DEFAULT_REGION:-}" ]]; then
-    AWS_DEFAULT_REGION=$(_imds_get "$imds_token" meta-data/placement/region) || {
-      echo "keycloak-config: could not read region from IMDS" >&2
-      exit 1
-    }
-    export AWS_DEFAULT_REGION
-  fi
-  KIB_SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "$KIB_SECRET_ID" \
-    --query SecretString --output text) || {
-    echo "keycloak-config: secretsmanager get-secret-value failed" >&2
+if [[ -z "${KIB_USERDATA:-}" ]]; then
+  KIB_USERDATA=$(_imds_get "$imds_token" user-data) || {
+    echo "keycloak-config: could not read user-data from IMDS" >&2
     exit 1
   }
 fi
 
-# --- unpack the cluster secret ---
-db_url=$(_field db_url)
-db_username=$(_field db_username)
-db_password=$(_field db_password)
-hostname=$(_field hostname)
-java_opts=$(_field java_opts_append)
-bootstrap_user=$(_field bootstrap_admin_username)
-bootstrap_pass=$(_field bootstrap_admin_password)
-
-_require db_url "$db_url"
-_require db_username "$db_username"
-_require db_password "$db_password"
-_require hostname "$hostname"
-
-# --- prepare target dirs ---
+# --- prepare target files ---
 mkdir -p "$ETC" "$RUN"
 chmod 0750 "$RUN"
-if [[ "$(id -u)" -eq 0 ]]; then
-  chown root:keycloak "$RUN" 2> /dev/null || true
-fi
+[[ "$(id -u)" -eq 0 ]] && chown root:keycloak "$RUN" 2> /dev/null || true
 
-# --- non-secret runtime config -> /etc/keycloak/keycloak.env (via the template) ---
-export KC_DB_URL="$db_url" KC_HOSTNAME="$hostname" JAVA_OPTS_APPEND="$java_opts"
-# shellcheck disable=SC2016  # ${VARS} are envsubst's argument, not shell expansion
-envsubst '${KC_DB_URL} ${KC_HOSTNAME} ${NODE_PRIVATE_IP} ${JAVA_OPTS_APPEND}' \
-  < "$TEMPLATE" > "$ETC/keycloak.env"
-chmod 0640 "$ETC/keycloak.env"
-
-# --- secret values -> /run/keycloak/secrets.env (tmpfs, 0640 root:keycloak) ---
+env_file="$ETC/keycloak.env"
+sec_file="$RUN/secrets.env"
 umask 027
-{
-  printf 'KC_DB_USERNAME=%s\n' "$db_username"
-  printf 'KC_DB_PASSWORD=%s\n' "$db_password"
-  if [[ -n "$bootstrap_user" && -n "$bootstrap_pass" ]]; then
-    printf 'KC_BOOTSTRAP_ADMIN_USERNAME=%s\n' "$bootstrap_user"
-    printf 'KC_BOOTSTRAP_ADMIN_PASSWORD=%s\n' "$bootstrap_pass"
+: > "$env_file"
+: > "$sec_file"
+chmod 0640 "$env_file" "$sec_file"
+[[ "$(id -u)" -eq 0 ]] && chown root:keycloak "$sec_file" 2> /dev/null || true
+
+# JGroups bind address comes from IMDS, not user-data.
+printf 'KC_CACHE_EMBEDDED_NETWORK_BIND_ADDRESS=%s\n' "$NODE_PRIVATE_IP" >> "$env_file"
+
+# --- route user-data KEY=VALUE lines ---
+have_db_url="" have_db_user="" have_db_pass="" have_hostname=""
+while IFS= read -r line; do
+  [[ "$line" =~ ^(KC_[A-Z0-9_]+|JAVA_OPTS_APPEND)= ]] || continue
+  key=${line%%=*}
+  val=${line#*=}
+  if _is_secret_key "$key"; then
+    printf '%s\n' "$line" >> "$sec_file"
+  else
+    printf '%s\n' "$line" >> "$env_file"
   fi
-} > "$RUN/secrets.env"
-chmod 0640 "$RUN/secrets.env"
-if [[ "$(id -u)" -eq 0 ]]; then
-  chown root:keycloak "$RUN/secrets.env" 2> /dev/null || true
+  [[ -n "$val" ]] || continue
+  case "$key" in
+    KC_DB_URL) have_db_url=1 ;;
+    KC_DB_USERNAME) have_db_user=1 ;;
+    KC_DB_PASSWORD) have_db_pass=1 ;;
+    KC_HOSTNAME) have_hostname=1 ;;
+  esac
+done <<< "$KIB_USERDATA"
+
+# --- validate required keys are present and non-empty ---
+missing=()
+[[ -n "$have_db_url" ]] || missing+=(KC_DB_URL)
+[[ -n "$have_db_user" ]] || missing+=(KC_DB_USERNAME)
+[[ -n "$have_db_pass" ]] || missing+=(KC_DB_PASSWORD)
+[[ -n "$have_hostname" ]] || missing+=(KC_HOSTNAME)
+if [[ ${#missing[@]} -gt 0 ]]; then
+  echo "keycloak-config: user-data missing required keys: ${missing[*]}" >&2
+  exit 1
 fi
 
 echo "keycloak-config: node configuration complete"

@@ -25,11 +25,11 @@ kcimage seal         # then create the AMI in the AWS Console
 
 ## Remaining
 
-- ~~Boot secret-fetch (ADR-0008)~~ — **done**: `boot/configure-node.sh` reads
-  IMDSv2 + fetches the cluster's JSON secret and splits it (secret→tmpfs,
-  non-secret→`keycloak.env`). The split is Bats-tested; the live IMDS/AWS path is
-  exercised by the real-instance test below. Uses AWS CLI v2 + `jq` (documented
-  model prerequisites — KIB does not install third-party tooling).
+- ~~Boot config (ADR-0008)~~ — **done**: `boot/configure-node.sh` reads IMDSv2
+  (private IP) + launch-template user-data (`KEY=VALUE`, `KC_*` names) and splits
+  it (secret→tmpfs, non-secret→`keycloak.env`). Bats-tested; the live IMDS path is
+  exercised by the real-instance test below. **No AWS CLI, no `jq`** — Secrets
+  Manager was dropped for user-data (simpler, fewer boot dependencies).
 - Real-instance test on a RHEL-family 10 host, e.g. Rocky Linux 10 (install → verify → seal → image).
 - Operational docs: upgrade runbook, OS-patching runbook (ADR-0013), README polish.
 - **Centralized logging** (Fluent Bit → CloudWatch, ADR-0010) — deferred

@@ -103,7 +103,7 @@ Rename-swap:
 - [ ] Wait for both renames to finish; confirm the endpoint DNS for `<original>`
       now resolves to the restored instance.
 
-*Alternative (repoint):* update the DB endpoint in Secrets Manager /
+*Alternative (repoint):* update the DB endpoint in the launch-template user-data /
 `keycloak.env` to the restored instance's endpoint instead of renaming. Use only
 if the rename-swap is not viable.
 

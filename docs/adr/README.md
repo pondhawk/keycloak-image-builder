@@ -13,7 +13,7 @@ begins only after the relevant ADRs are **Accepted**.
 | [0005](0005-systemd-service-design.md) | systemd Service Design | Accepted |
 | [0006](0006-upgrade-strategy.md) | Upgrade Strategy | Accepted |
 | [0007](0007-rollback-strategy.md) | Rollback Strategy | Accepted |
-| [0008](0008-secrets-management.md) | Secrets Management | Accepted |
+| [0008](0008-secrets-management.md) | Node Configuration & Secrets Delivery | Accepted |
 | [0009](0009-clustering-jdbc-ping2.md) | Clustering (JDBC_PING2) | Accepted |
 | [0010](0010-logging.md) | Logging | Accepted |
 | [0011](0011-selinux.md) | SELinux | Accepted |

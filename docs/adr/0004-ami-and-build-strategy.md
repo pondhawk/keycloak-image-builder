@@ -75,7 +75,7 @@ systemd units; SELinux policy; templates; docs; the neutral `keycloak.conf`.
 |---|---|
 | `/etc/keycloak/keycloak.env` (real values) → template only | environment-specific; injected at boot |
 | `/etc/keycloak/bootstrap.env` | transient secret |
-| any cached Secrets Manager material | no secrets in image |
+| any cached secret material | no secrets in image |
 | `/var/lib/keycloak` transient/runtime data, caches | runtime state, not neutral |
 | `/var/log/keycloak` + Keycloak journal entries | logs are instance history |
 | `/var/backups/keycloak` contents | may contain env data |

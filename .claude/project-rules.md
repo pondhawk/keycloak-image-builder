@@ -11,7 +11,7 @@ Operating rules for building KIB (blueprint §21).
 4. **Environment-neutral AMI is sacred.** No secrets, hostnames, endpoints, or
    realm data in the image. The `seal` neutrality gate must pass.
 5. **Never disable SELinux.** Enforcing always; fix via contexts/policy.
-6. **Never weaken secret handling.** Secrets only via Secrets Manager → tmpfs;
+6. **Never weaken secret handling.** Secrets only via user-data → tmpfs;
    never on persistent disk, in the AMI, in logs, or in git.
 7. **Every milestone adds validation.** Extend `kcimage verify` / neutrality /
    smoke checks with each milestone (ADR-0012).

@@ -12,6 +12,7 @@ All notable changes to KIB are documented here. Format loosely follows
   JSON→journald logging is unaffected.
 
 ### Changed
+- **Dropped AWS Secrets Manager** for boot config — the node now reads config (incl. DB creds) from launch-template user-data (KEY=VALUE, KC_* names) + private IP from IMDS, split into keycloak.env + tmpfs secrets.env. No AWS CLI, no jq, no VPC endpoint / secrets IAM. ADR-0008 revised with the threat-model rationale.
 - **Scope consolidation:** `kcimage` reduced to four model-instance commands —
   `install` (now also renders neutral config + runs `kc.sh build` + SELinux),
   `verify`, `seal` (new; neutrality gate with `--check`), and `version`.

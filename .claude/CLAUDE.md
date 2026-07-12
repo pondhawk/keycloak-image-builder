@@ -25,7 +25,7 @@ service or a compiled app.
 - Golden instance → `seal` → per-vendor AMI → ASG self-configures at boot
   (ADR-0004, ADR-0005).
 - Config split: neutral `keycloak.conf` baked; `keycloak.env` + secrets at boot
-  (ADR-0002). Secrets from AWS Secrets Manager via tmpfs (ADR-0008).
+  (ADR-0002). Secrets from launch-template user-data via tmpfs (ADR-0008).
 - Immutable upgrade = scale-to-0 cutover; symlink swap is golden-instance-only
   (ADR-0006). Rollback via previous AMI + RDS snapshot (ADR-0007).
 - Clustering via built-in `jdbc-ping` stack; TLS terminates at the ALB (ADR-0009).

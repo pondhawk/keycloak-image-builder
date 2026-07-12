@@ -60,8 +60,8 @@ Init System: - systemd
 
 Security: - SELinux Enforcing
 
-Secrets: - AWS Secrets Manager (DB password and bootstrap admin
-credentials); retrieved at boot, never baked into the AMI.
+Secrets: - Launch-template user-data (DB credentials + config as
+KEY=VALUE); read at boot, secret keys to tmpfs, never baked into the AMI.
 
 Deployment Model: - Multi-node Keycloak cluster
 

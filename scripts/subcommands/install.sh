@@ -201,7 +201,7 @@ _install_selinux() {
 # Baked into the AMI so an ASG node boots Keycloak automatically. This is why
 # there is no separate "install the toolkit" step — `install` bakes the runtime.
 _install_systemd() {
-  local sd_src boot_src tpl_src
+  local sd_src boot_src
   sd_src="$(_install_share_dir systemd)" || {
     log_error "systemd/ directory not found"
     return "$EX_CONFIG"
@@ -210,15 +210,10 @@ _install_systemd() {
     log_error "boot/ directory not found"
     return "$EX_CONFIG"
   }
-  tpl_src="$(_install_share_dir templates)" || {
-    log_error "templates/ directory not found"
-    return "$EX_CONFIG"
-  }
 
-  # Boot script + its env template live together (the unit's ExecStart path).
+  # Boot script (self-contained; the unit's ExecStart path).
   run install -d -m 0755 "$KC_BOOT_DIR"
   run install -m 0755 "$boot_src/configure-node.sh" "$KC_BOOT_DIR/configure-node.sh"
-  run install -m 0644 "$tpl_src/keycloak.env" "$KC_BOOT_DIR/keycloak.env"
 
   # systemd units
   run install -d -m 0755 "$KC_SYSTEMD_DIR"

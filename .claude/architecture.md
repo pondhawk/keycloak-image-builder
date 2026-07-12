@@ -12,7 +12,7 @@ The authoritative architecture lives in two places:
 A **golden model instance** is provisioned by `kcimage` (Java 21 + Keycloak 26.x
 + toolkit), validated, sanitized by `seal`, and imaged into a **per-vendor
 AMI**. An **Auto Scaling Group** launches ephemeral nodes from that AMI; each
-node self-configures at boot (secrets from Secrets Manager → tmpfs, `keycloak.env`
+node self-configures at boot (secrets from launch-template user-data → tmpfs, `keycloak.env`
 from user-data), starts under systemd, joins the cluster via the built-in
 `jdbc-ping` stack against a shared RDS (MySQL or Postgres), and serves HTTP behind
 an ALB that terminates TLS. Upgrades are immutable (scale-to-0 cutover to a new

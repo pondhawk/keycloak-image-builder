@@ -25,7 +25,7 @@ The database side is not, and this ADR exists to be honest about why:
      lost.
    - **Restore is not in-place.** RDS restores a snapshot to a **new instance
      with a new endpoint**; you cannot overwrite the running instance. Recovery
-     therefore also requires repointing the DB endpoint (via Secrets Manager /
+     therefore also requires repointing the DB endpoint (via the launch-template user-data /
      `keycloak.env`) or an RDS rename.
 
 These realities, not the AMI swap, are what shape the strategy.
@@ -53,7 +53,7 @@ database must go back too:
 
 1. Scale ASG to 0.
 2. **Restore the pre-upgrade RDS snapshot** (Console) to a new instance.
-3. **Repoint the DB endpoint** — update the value in Secrets Manager /
+3. **Repoint the DB endpoint** — update the value in the launch-template user-data /
    `keycloak.env` to the restored instance (or perform an RDS rename so the
    original endpoint name resolves to the restored data).
 4. Revert the launch template to the previous AMI.
@@ -142,7 +142,7 @@ requirement is really about.
 
 - Pre-upgrade snapshot creation and the upgrade flow → ADR-0006.
 - Previous-AMI retention → ADR-0004.
-- DB endpoint delivery via Secrets Manager / `keycloak.env` → ADR-0002,
+- DB endpoint delivery via launch-template user-data → ADR-0002,
   ADR-0008.
 - Post-rollback cluster validation → ADR-0009.
 - Detailed procedure → `docs/operations/rollback-with-db-restore.md` (the

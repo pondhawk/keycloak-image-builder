@@ -1,168 +1,138 @@
-# ADR-0008: Secrets Management
+# ADR-0008: Node Configuration & Secrets Delivery
 
-- **Status:** Accepted
-- **Date:** 2026-07-11
+- **Status:** Accepted (revised 2026-07-12 — supersedes the AWS Secrets Manager design)
+- **Date:** 2026-07-11 (revised 2026-07-12)
 - **Deciders:** James Moring (owner), Claude Code (architect)
 - **Format:** Nygard ADR (Context · Decision · Consequences)
 
 ## Context
 
-The AMI is environment-neutral and carries **no** secrets (§15, ADR-0004).
-Every ephemeral ASG node must therefore obtain its secrets at boot. The secrets
-KIB handles are:
+The AMI is environment-neutral and carries **no** config or secrets (§15,
+ADR-0004). Every ephemeral ASG node must therefore obtain its configuration —
+including the DB credentials — at boot, from outside the image. What a node
+needs:
 
-- **Keycloak database credentials** (app user + password) — needed every boot.
-- **Bootstrap admin credentials** — needed only when the database is
-  uninitialized; near-vestigial for this populated-DB deployment, but must exist
-  for correctness (ADR-0002, ADR-0005).
+- DB connection (`KC_DB_URL`, `KC_DB_USERNAME`, `KC_DB_PASSWORD`), the public
+  hostname (`KC_HOSTNAME`), JVM sizing, and — only for an uninitialized DB — a
+  bootstrap admin.
+- Its own private IP (JGroups bind address), which is per-instance.
 
-The blueprint fixes the store as **AWS Secrets Manager**. This ADR pins the rest:
-a **single JSON secret per cluster** holding all environment-specific config, a
-non-sensitive **user-data pointer** to it (so multiple clusters coexist), how the
-values reach the Keycloak process without ever touching persistent disk or the
-AMI, the IAM model, and rotation.
-
-Keycloak can read sensitive options either from **environment variables** or
-from a **config keystore** (`KC_CONFIG_KEYSTORE`). The choice affects complexity.
+An earlier revision of this ADR fetched these from **AWS Secrets Manager** at
+boot. That was reconsidered (2026-07-12): for a system whose whole job is to
+scale reliably, the secret-fetch is a **brittle chain that must all be right on
+every launch** — the AWS CLI v2 present (and it is *not* in the RHEL repos), `jq`
+present, a network path to Secrets Manager (VPC endpoint/NAT), a correctly
+scoped IAM role, and a well-formed secret. Miss one and the node will not boot.
+That is a lot of configuration surface, plus two tooling dependencies, for
+marginal benefit **on a single-purpose node** (see threat model below).
 
 ## Decision
 
-### One JSON secret per cluster
+### Configuration (incl. DB credentials) is delivered via launch-template user-data
 
-All of a cluster's environment-specific configuration — endpoint, hostname, JVM
-sizing, **and** credentials — lives in a **single JSON secret per cluster** in
-AWS Secrets Manager, e.g. `keycloak/<cluster>/config`:
+Each cluster's launch template carries its config as **`KEY=VALUE` lines using
+Keycloak's `KC_*` names** in user-data. `KEY=VALUE` is bash-native (no `jq`) and
+maps 1:1 to Keycloak's env vars.
 
-```json
-{
-  "db_url": "jdbc:mysql://cluster-a-rds.internal:3306/keycloak",
-  "db_username": "keycloak_app",
-  "db_password": "••••••",
-  "hostname": "https://auth-a.example.com",
-  "java_opts_append": "-Xms512m -Xmx1024m",
-  "bootstrap_admin_username": "••••••",
-  "bootstrap_admin_password": "••••••"
-}
+```sh
+# required
+KC_DB_URL=jdbc:mysql://prod-rds.internal:3306/keycloak
+KC_DB_USERNAME=keycloak_app
+KC_DB_PASSWORD=<the db password>
+KC_HOSTNAME=https://auth.example.com
+# optional
+JAVA_OPTS_APPEND=-Xms512m -Xmx1024m
+# only for an uninitialized DB (usually omitted):
+KC_BOOTSTRAP_ADMIN_USERNAME=<user>
+KC_BOOTSTRAP_ADMIN_PASSWORD=<pass>
 ```
 
-**One secret per cluster** (not a fixed convention name) so multiple Keycloak
-clusters can coexist in one AWS account without colliding.
+Each launch template carries its own block, so "which cluster" is implicit — no
+pointer or secret name needed.
 
-### The user-data pointer (a name, not a credential)
+### Boot split (unchanged): secrets → tmpfs, the rest → /etc/keycloak
 
-Each cluster's launch template conveys **only the secret's name/ARN** in
-user-data — a non-sensitive pointer, never a credential:
+`keycloak-config.service` (root oneshot, ADR-0005) reads IMDSv2 and routes each
+key by sensitivity:
 
-```
-KIB_SECRET_ID=keycloak/<cluster>/config
-```
+| Source / key | Destination |
+|--------------|-------------|
+| IMDS `local-ipv4` → `KC_CACHE_EMBEDDED_NETWORK_BIND_ADDRESS` | `/etc/keycloak/keycloak.env` |
+| user-data `KC_DB_URL`, `KC_HOSTNAME`, `JAVA_OPTS_APPEND`, other `KC_*` | `/etc/keycloak/keycloak.env` |
+| user-data `KC_DB_USERNAME`, `KC_DB_PASSWORD`, `KC_BOOTSTRAP_ADMIN_*` | `/run/keycloak/secrets.env` (**tmpfs**, 0640 root:keycloak) |
 
-Putting a *name* in user-data is safe; putting a *password* there would not be
-(readable via IMDS/SSRF and by anyone with launch-template read access). So the
-password never goes in user-data — only the pointer does. This keeps the model
-flexible for N clusters while every actual value stays in Secrets Manager.
+`keycloak.service` consumes both as `EnvironmentFile=` entries. Secrets on tmpfs
+**never hit persistent disk** and cannot be captured into an AMI. `db.vendor` is
+*not* here — it is build-time, baked into the per-vendor AMI (ADR-0003).
 
-### Per-instance facts from IMDS
+### No AWS tooling at boot
 
-The node's **private IP** (JGroups bind address, ADR-0009) is unique per
-instance, so it is read from **IMDSv2** at boot — not from the shared cluster
-secret.
+Boot is: IMDSv2 token → read `local-ipv4` + `user-data` (curl) → parse
+`KEY=VALUE` → write two files → start. **No AWS CLI, no `jq`, no Secrets Manager,
+no VPC endpoint, no secrets IAM role.** Self-contained, few failure points.
 
-### Delivery: fetch one secret → split by sensitivity → tmpfs for secrets
+### Threat model — why this is acceptable
 
-The `keycloak-config.service` root oneshot (ADR-0005) does, on every boot:
+Putting the DB password in user-data is a deliberate, bounded trade:
 
-1. Read `KIB_SECRET_ID` from user-data and the private IP from **IMDSv2**.
-2. `secretsmanager:GetSecretValue` on that **one** secret (instance IAM role).
-3. Write **non-secret** fields (`db_url`, `hostname`, `java_opts_append`) plus the
-   private IP into `/etc/keycloak/keycloak.env`.
-4. Write **secret** fields (`db_username`, `db_password`, and — only when the DB
-   is uninitialized — the bootstrap admin) into `/run/keycloak/secrets.env` on
-   **tmpfs**, mode `0640`, owner `root:keycloak`.
-5. `keycloak.service` consumes both as `EnvironmentFile=` entries.
+- **Single-purpose node.** The box runs only Keycloak. The only on-box actor that
+  can read user-data (via IMDS) is a compromised Keycloak — which would already
+  have the DB creds from its own process/session. So user-data adds ~zero on-box
+  exposure over the tmpfs approach.
+- **The password guards data the reader can already reach.** It protects the
+  identity data in RDS; anyone who can reach and query RDS already has that data.
+- **Off-box exposure is controlled by IAM.** The one gap — `ec2:DescribeLaunch
+  TemplateVersions` is sometimes granted more broadly than RDS access — is closed
+  by **restricting launch-template read access via IAM** to the same principals
+  who can reach RDS.
 
-Because `/run` is tmpfs, secrets **never hit persistent disk**, cannot be
-captured into an AMI, and vanish on stop/terminate. `db.vendor` is *not* in the
-secret — it is build-time, baked into the per-vendor AMI (ADR-0003); the
-`db_url`'s `jdbc:` prefix must match that vendor.
-
-### Mechanism: environment variables, not a config keystore
-
-Secrets are delivered as environment variables (`KC_DB_USERNAME`,
-`KC_DB_PASSWORD`, and the bootstrap vars when applicable) via the tmpfs
-`EnvironmentFile`. The Keycloak **config keystore** was considered and rejected:
-it adds keystore creation and a keystore password (a chicken-and-egg secret) for
-marginal benefit over a root-owned `0640` tmpfs file. Simplicity wins, with the
-tmpfs + permissions + no-logging controls below as compensating protections.
-
-### Bootstrap admin handling
-
-The bootstrap admin username/password are **fields in the same cluster secret**.
-They are written to `/run/keycloak/secrets.env` (tmpfs) only when the DB is
-uninitialized, consumed by the init step, then cleared (ADR-0002/0005). Normally
-a no-op here (populated DB), and doubly safe by being tmpfs-only.
-
-### IAM (least privilege)
-
-- EC2 nodes run under an **instance profile / IAM role** — no static AWS keys on
-  the instance.
-- The role allows only `secretsmanager:GetSecretValue` on **that cluster's secret
-  ARN**, plus `kms:Decrypt` on the CMK if it uses a customer-managed key.
-  Per-cluster scoping means one cluster's node role cannot read another cluster's
-  secret, even though the name is known (it is in user-data).
-- **IMDSv2 required** (tokens, restricted hop limit) so metadata/role creds are
-  not trivially exfiltrated.
+Required mitigations (operator-provisioned): **IAM-restricted launch-template
+read**, **IMDSv2 required** (tokens + hop limit), and **keep user-data out of
+logs** — our systemd oneshot reads user-data directly and never logs it; do
+*not* also run that user-data as a cloud-init script (cloud-init can echo
+user-data into its logs).
 
 ### Rotation
 
-- Because nodes fetch at boot and are ephemeral, a rotated secret is picked up
-  automatically by any newly launched node.
-- Keycloak reads DB credentials at start, so rotating the DB password for a
-  running fleet requires **cycling the nodes** (ASG instance replacement) — which
-  the immutable model already makes routine. KIB does **not** implement live
-  secret reload.
+Update the launch template's user-data and cycle the nodes (ASG instance
+replacement) — routine under the immutable model. Keycloak reads creds at start,
+so a running fleet needs a cycle regardless of the source.
 
 ### No secret ever logged
 
-`kcimage` and the boot scripts must never echo or log secret values (strict-mode
-scripts, no `set -x` over secret handling, redacted diagnostics). Secrets Manager
-access is itself auditable via CloudTrail.
+The boot script and `kcimage` never echo secret values (strict mode, no `set -x`
+over secret handling; errors list key *names*, not values).
 
 ## Consequences
 
 ### Positive
 
-- Secrets never touch persistent disk or the AMI: tmpfs delivery makes AMI
-  neutrality structural rather than reliant on `seal` scrubbing.
-- One secret per cluster + a name-only user-data pointer is both flexible
-  (N clusters) and secure (no credential ever in user-data); boot is a single
-  fetch.
-- Least-privilege IAM + IMDSv2 + no static keys keeps the blast radius of a
-  compromised node small.
-- Environment-variable delivery keeps the mechanism simple and debuggable
-  without exposing secrets in config files.
+- **Fewest moving parts at boot:** no AWS CLI (the non-RHEL-repo bundle), no `jq`,
+  no VPC endpoint, no Secrets-Manager IAM, no secret to provision. Boot can't fail
+  on any of those.
+- Secrets still stay off persistent disk and out of the AMI (tmpfs delivery).
+- One place per cluster to set config (the launch template), in Keycloak's own
+  `KC_*` names — self-documenting.
 
 ### Negative / Trade-offs
 
-- Env-var secrets are readable via `/proc/<pid>/environ` by root on the node;
-  accepted, and bounded by node isolation and least privilege. The config
-  keystore would reduce this but at a complexity cost we chose not to pay.
-- DB-password rotation requires a node cycle rather than a hot reload — cheap
-  under ASG, but not instantaneous.
-- Per cluster you provision one JSON secret + one user-data pointer + one IAM
-  role (documented, not toolkit-created). Non-secret config (endpoint, hostname)
-  living inside a Secrets Manager secret is slightly unconventional, but buys the
-  single-fetch simplicity.
+- The DB password lives in the launch template (plaintext, IAM-gated). Accepted
+  for a single-purpose node with restricted launch-template access; it is the
+  crux of this decision and must be a conscious operator choice.
+- Less audit than Secrets Manager (no per-read CloudTrail trail on the credential).
+- Rotation requires editing the launch template and cycling nodes (cheap under
+  ASG, but not a Secrets-Manager rotation).
 
 ### Notes
 
-- The boot fetch uses the **AWS CLI v2** and **`jq`**, installed on the model as
-  documented prerequisites (README) and baked into the AMI. KIB does not install
-  third-party tooling; AWS CLI v2 is not in the RHEL repos (official bundle),
-  `jq` is (`dnf`).
 - Boot orchestration and unit wiring → ADR-0005.
 - Config layering (secret vs non-secret) → ADR-0002.
-- Vendor split (`db.vendor` is build-time, not in the secret) → ADR-0003.
+- Vendor split (`db.vendor` is build-time) → ADR-0003.
 - ADR-0007 Step 4 (rename-swap): rename-swap preserves the endpoint, so the
-  secret's `db_url` stays valid and needs **no edit**; a true repoint means
-  editing the secret's `db_url`.
+  user-data `KC_DB_URL` stays valid and needs **no edit**; a true repoint means
+  editing the launch template's `KC_DB_URL`.
+- **Superseded:** the AWS Secrets Manager approach (single JSON secret per
+  cluster + user-data pointer + IAM `GetSecretValue`) — dropped 2026-07-12 for
+  the brittleness/dependency reasons in Context. Revisit if a future need
+  (tighter audit, broad multi-tenant nodes) outweighs the added surface.
+```

@@ -26,7 +26,7 @@ Two independent classifications must be reconciled:
 
 2. **KIB's neutral vs environment-specific split.** Neutral values are safe to
    image and share across environments; environment-specific values are not and
-   must come from outside the AMI (Secrets Manager, instance metadata,
+   must come from outside the AMI (instance metadata,
    user-data).
 
 The blueprint §7 already names three config artifacts — `keycloak.conf`,
@@ -50,7 +50,7 @@ without rebuilding.
 | 0 | Keycloak built-in defaults | — | — | n/a |
 | 1 | `/etc/keycloak/keycloak.conf` | **Build-time, environment-neutral** platform options | AMI bake | **Yes** |
 | 2 | `/etc/keycloak/keycloak.env` (env vars) | **Runtime, environment-specific** values | First boot | No |
-| 3 | Secrets (AWS Secrets Manager) → env vars | **Sensitive** runtime values | First boot | No |
+| 3 | Secrets (launch-template user-data) → env vars | **Sensitive** runtime values | First boot | No |
 | 4 | CLI arguments (via `kcimage`) | Explicit operational overrides | On demand | n/a |
 
 Higher layers override lower. This mirrors Keycloak's native precedence, so a
@@ -62,7 +62,7 @@ boot-injected env var (Layer 2/3) always wins over the baked `keycloak.conf`
 - **A build-time option MUST be environment-neutral** and live in
   `keycloak.conf` (Layer 1), baked into the AMI.
 - **An environment-specific value MUST be a runtime option** and be injected at
-  boot via `keycloak.env` / Secrets Manager (Layers 2–3).
+  boot via `keycloak.env` / tmpfs `secrets.env` (Layers 2–3).
 - **A value that is both build-time and environment-specific** cannot be
   neutralized; the only instance is `db` (vendor), resolved by per-vendor AMIs
   (ADR-0004). No other value may occupy this quadrant; the installer validates
@@ -84,14 +84,14 @@ service as an `EnvironmentFile=` for the systemd unit (mechanism finalized in
 ADR-0005). Examples: `KC_DB_URL` (RDS endpoint), `KC_DB_USERNAME`,
 `KC_HOSTNAME`, `KC_HTTP_*`, and JVM sizing via `JAVA_OPTS_APPEND`.
 
-**Secrets (AWS Secrets Manager)** — runtime, sensitive. Retrieved at first boot
+**Secrets (launch-template user-data)** — runtime, sensitive. Retrieved at first boot
 and delivered as environment variables (or via Keycloak's keystore config
 source; decided in ADR-0008). Examples: `KC_DB_PASSWORD`, bootstrap admin
 credentials. Never written into the AMI; never committed to the repo.
 
 **`/etc/keycloak/bootstrap.env`** — transient. Holds temporary bootstrap admin
 credentials (`KC_BOOTSTRAP_ADMIN_USERNAME` / `KC_BOOTSTRAP_ADMIN_PASSWORD`),
-sourced from Secrets Manager on first boot only, used by the one-shot
+sourced from user-data on first boot only, used by the one-shot
 initialization unit, and **removed after successful initialization**. Because
 the RDS database is already populated (ADR scope), initialization is
 idempotent: if the admin already exists, the boot logic skips creation and
@@ -125,7 +125,7 @@ At bake and at boot, `kcimage` verifies:
 - Boot-injected env vars overriding baked `keycloak.conf` is exactly Keycloak's
   native precedence, so KIB fights the tool less.
 - Secrets never touch the AMI or the repo; they have a single delivery path
-  (Secrets Manager → env at boot), simplifying the Secrets ADR.
+  (user-data → env at boot), simplifying the Secrets ADR.
 - Keeping config out of `/opt/keycloak/current` preserves the immutability that
   the upgrade model (ADR-0006) depends on.
 
@@ -135,7 +135,7 @@ At bake and at boot, `kcimage` verifies:
   which file a new option belongs in; a misplaced option either breaks AMI
   neutrality or silently fails to take effect. The neutrality gate catches the
   first case but not the second — documentation and templates must be explicit.
-- Two delivery mechanisms at boot (plain env file vs Secrets Manager) add a
+- The boot script parses user-data and routes secrets to tmpfs — a small added
   moving part to first-boot orchestration.
 - The `db` vendor being the sole build-time/env-specific value is a constraint
   that must be actively defended: any future option with the same character
