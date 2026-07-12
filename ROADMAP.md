@@ -10,7 +10,8 @@ runbooks, **not** by `kcimage`.
 
 | Command | Purpose | Status |
 |---------|---------|--------|
-| `install` | Install/update Keycloak on the model: Java, distribution, dirs, service user, neutral `keycloak.conf`, `kc.sh build`, SELinux contexts | ✅ |
+| `install` | Establish a fresh install (greenfield) on a clean model: Java, distribution, dirs, service user, neutral `keycloak.conf`, `kc.sh build`, SELinux contexts | ✅ |
+| `upgrade` | Move an existing install to a new Keycloak version (vendor read from the model; `--stage` to pre-download) | ✅ |
 | `verify` | Validate the install: Java, install, build, config, SELinux Enforcing, systemd units | ✅ |
 | `seal` | Sanitize for imaging + neutrality gate (`--check` runs the gate only) | ✅ |
 | `clean` | Invert `install` — return the model to a pristine state (testing); `--yes` to apply | ✅ |
@@ -42,9 +43,12 @@ kcimage seal         # then create the AMI in the AWS Console
 ## Note on scope
 
 The blueprint §19 listed 11 milestones and §11 an 18-command CLI. We consolidated
-to the four core commands above (plus `clean`, a testing convenience): the
-pets-oriented commands (`start`/`stop`/`restart`/
-`status`/`logs`/`journal`/`cluster`/`upgrade`/`rollback`/`health`/`check`/
-`configure`/`build`/`selinux`) were dropped or folded, because in the cattle /
-immutable-AMI model nobody runs commands on production nodes — the toolkit's job
-is to build a clean image. The decisions themselves remain recorded in the ADRs.
+to the five focused model-build commands above (plus `clean`, a testing
+convenience): the pets-oriented commands (`start`/`stop`/`restart`/`status`/
+`logs`/`journal`/`cluster`/`rollback`/`health`/`check`/`configure`/`build`/
+`selinux`) were dropped or folded, because in the cattle / immutable-AMI model
+nobody runs commands on production nodes — the toolkit's job is to build a clean
+image. Note `upgrade` here is the **model-side** version bump (it produces a new
+image); the **cluster** upgrade/rollback (scale-to-0 cutover, ADR-0006/0007)
+stays an AWS + ASG operation, not a toolkit command. The decisions themselves
+remain recorded in the ADRs.

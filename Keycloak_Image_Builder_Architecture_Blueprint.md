@@ -249,17 +249,23 @@ kcimage
 KIB is a model-instance build tool, not a production-node console (nodes are
 cattle). The command surface is deliberately small:
 
--   `install` — install/update Keycloak on the model (renders neutral config,
-    deploys custom provider JARs, runs `kc.sh build`, installs units + SELinux)
+-   `install` — establish a fresh install (lineage) on a clean model: render
+    neutral config, deploy custom provider JARs, run `kc.sh build`, install
+    units + SELinux. Greenfield-only; requires `--db-vendor`.
+-   `upgrade` — move an existing install to a new Keycloak version (ADR-0006
+    Phase 1: golden-instance version prep). Reads the DB vendor from the model,
+    so it can't change the image's baked vendor; `--stage` to pre-download.
 -   `verify` — offline pre-seal validation (Java, build, config, SELinux, units,
     providers)
 -   `seal` — sanitize the instance for imaging + neutrality gate
 -   `clean` — invert `install`, returning the model to a pristine state (testing)
 -   `version` — show KIB + Keycloak versions
 
-Runtime lifecycle (start/stop/status/logs/health) is systemd + journald on the
-ASG nodes, not KIB. Upgrades/rollbacks are AMI + ASG operations (ADR-0006/0007),
-not toolkit subcommands.
+Note the scope boundary: `upgrade` bumps the Keycloak version **on the model**
+and produces a new image. Rolling that image to the running fleet — the
+scale-to-0 cutover (ADR-0006) and rollback (ADR-0007) — is an AMI + ASG
+operation, not a toolkit subcommand. Runtime lifecycle
+(start/stop/status/logs/health) is systemd + journald on the ASG nodes, not KIB.
 
 ------------------------------------------------------------------------
 

@@ -10,15 +10,16 @@ _install_usage() {
   cat << EOF
 Usage: kcimage install --keycloak-version <ver> --db-vendor <postgres|mysql> [options]
 
-Install or update Keycloak on the model instance and prepare it for imaging.
+Establish a fresh Keycloak install (lineage) on a clean model instance and
+prepare it for imaging. To change the version of an EXISTING install, use
+'kcimage upgrade' (which keeps the baked DB vendor). install is greenfield-only.
 
 Options:
   --keycloak-version <ver>   Keycloak version, e.g. 26.1.4 (required)
-  --db-vendor <v>            postgres | mysql (required; baked into the AMI)
+  --db-vendor <v>            postgres | mysql (required; baked into the image)
   --java-package <pkg>       OpenJDK package (default: java-${KIB_JAVA_MAJOR}-openjdk-headless)
   --etc-dir <dir>            Config dir (default: /etc/keycloak)
   --providers-dir <dir>      Custom provider JARs (default: ~/keycloak-custom-providers)
-  --activate                 Point /opt/keycloak/current at this version
   -h, --help                 Show this help
 EOF
 }
@@ -231,19 +232,71 @@ _install_systemd() {
   log_info "installed systemd units + boot script"
 }
 
-# Point 'current' at this version on first install or when --activate is given.
-_maybe_set_current() {
-  local ver="$1" activate="$2"
-  if [[ "$activate" == "1" || ! -e "$KC_CURRENT" ]]; then
-    run ln -sfn "keycloak-$ver" "$KC_CURRENT"
-    log_info "current -> keycloak-$ver"
-  else
-    log_info "current unchanged ($(readlink "$KC_CURRENT" 2> /dev/null || echo '?')); pass --activate to switch"
+# Switch the 'current' symlink to this version. This is the default behavior;
+# 'upgrade --stage' skips it (and everything downstream that targets 'current').
+_activate_current() {
+  local ver="$1"
+  run ln -sfn "keycloak-$ver" "$KC_CURRENT"
+  log_info "current -> keycloak-$ver"
+}
+
+# Read the DB vendor baked into the model's keycloak.conf. Prints it, or fails
+# with non-zero if there is no rendered config (i.e. no established install).
+_read_installed_vendor() {
+  local etc_dir="$1" line
+  local conf="$etc_dir/keycloak.conf"
+  [[ -f "$conf" ]] || return 1
+  while IFS= read -r line; do
+    case "$line" in
+      db=*)
+        printf '%s' "${line#db=}"
+        return 0
+        ;;
+    esac
+  done < "$conf"
+  return 1
+}
+
+# install is greenfield-only: refuse if the model already has an install. The
+# correct way to change an existing install's version is 'upgrade'; to start a
+# different lineage (e.g. another DB vendor) is 'clean' then 'install'.
+_install_guard_greenfield() {
+  local etc_dir="$1" vendor ver
+  [[ -e "$KC_CURRENT" || -f "$etc_dir/keycloak.conf" ]] || return 0
+  vendor="$(_read_installed_vendor "$etc_dir" 2> /dev/null || true)"
+  ver="$(readlink "$KC_CURRENT" 2> /dev/null || true)"
+  ver="${ver#keycloak-}"
+  log_error "already installed (db=${vendor:-?}, keycloak=${ver:-?})."
+  log_error "Use 'kcimage upgrade' to change the Keycloak version, or 'kcimage clean' to start over."
+  return "$EX_CONFIG"
+}
+
+# Shared install/upgrade pipeline. Version + vendor are already resolved by the
+# caller (install takes vendor from --db-vendor; upgrade reads it from the
+# model). stage=1 lays the distribution down without activating/config/build.
+_install_core() {
+  local kc_version="$1" vendor="$2" java_pkg="$3" etc_dir="$4" providers_dir="$5" stage="$6"
+  _ensure_java "$java_pkg" || return $?
+  _ensure_user || return $?
+  _ensure_dirs "$etc_dir" || return $?
+  _install_keycloak_dist "$kc_version" || return $?
+
+  if [[ "$stage" == "1" ]]; then
+    log_info "staged Keycloak $kc_version at $KC_OPT/keycloak-$kc_version (current unchanged; re-run 'upgrade' without --stage to make it live)"
+    return 0
   fi
+
+  _activate_current "$kc_version" || return $?
+  _install_render_conf "$vendor" "$etc_dir" || return $?
+  _install_deploy_custom "${providers_dir:-$(kib_user_home)/keycloak-custom-providers}" || return $?
+  _install_build "$etc_dir" || return $?
+  _install_systemd || return $?
+  _install_selinux || return $?
+  log_info "install complete: $KC_OPT/keycloak-$kc_version (current; ready to verify + seal)"
 }
 
 cmd_install() {
-  local kc_version="" vendor="" etc_dir="$KC_ETC" activate=0 providers_dir=""
+  local kc_version="" vendor="" etc_dir="$KC_ETC" providers_dir=""
   local java_pkg="java-${KIB_JAVA_MAJOR}-openjdk-headless"
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -262,10 +315,6 @@ cmd_install() {
       --etc-dir)
         etc_dir="${2:-}"
         shift 2
-        ;;
-      --activate)
-        activate=1
-        shift
         ;;
       --providers-dir)
         providers_dir="${2:-}"
@@ -300,17 +349,8 @@ cmd_install() {
   esac
   _install_validate_version "$kc_version" || return "$EX_USAGE"
   _install_check_privileges || return "$EX_CONFIG"
+  _install_guard_greenfield "$etc_dir" || return $?
 
   log_info "installing Keycloak $kc_version (db=$vendor, java=$java_pkg)"
-  _ensure_java "$java_pkg" || return $?
-  _ensure_user || return $?
-  _ensure_dirs "$etc_dir" || return $?
-  _install_keycloak_dist "$kc_version" || return $?
-  _maybe_set_current "$kc_version" "$activate" || return $?
-  _install_render_conf "$vendor" "$etc_dir" || return $?
-  _install_deploy_custom "${providers_dir:-$(kib_user_home)/keycloak-custom-providers}" || return $?
-  _install_build "$etc_dir" || return $?
-  _install_systemd || return $?
-  _install_selinux || return $?
-  log_info "install complete: $KC_OPT/keycloak-$kc_version (ready to verify + seal)"
+  _install_core "$kc_version" "$vendor" "$java_pkg" "$etc_dir" "$providers_dir" 0
 }
