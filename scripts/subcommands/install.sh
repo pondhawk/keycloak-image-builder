@@ -164,8 +164,12 @@ _install_render_conf() {
     return 0
   fi
   printf '%s\n' "$rendered" > "$etc_dir/keycloak.conf"
+  # The keycloak service user reads this at runtime via KC_CONFIG_FILE (the
+  # process opens it directly, unlike keycloak.env which systemd reads as root),
+  # so it must be group-owned by keycloak and group-readable.
+  chown "root:$KC_GROUP" "$etc_dir/keycloak.conf"
   chmod 0640 "$etc_dir/keycloak.conf"
-  log_info "rendered $etc_dir/keycloak.conf (db=$vendor)"
+  log_info "rendered $etc_dir/keycloak.conf (db=$vendor, root:$KC_GROUP 0640)"
 }
 
 # Deploy custom provider JARs from the operator's providers dir into the active
@@ -179,7 +183,11 @@ _install_deploy_custom() {
   [[ -e "${entries[0]}" ]] || return 0
   log_info "deploying custom providers from $src"
   run install -d "$dst"
-  run cp -a "$src"/*.jar "$dst/"
+  # Use install (not cp -a): the keycloak user loads these at runtime, so they
+  # must be root-owned and world-readable — cp -a would preserve the operator's
+  # ownership/mode from their home dir (possibly unreadable, and it would bake
+  # the operator's uid into the image).
+  run install -m 0644 "$src"/*.jar "$dst/"
 }
 
 # Run kc.sh build against the active install, using the neutral keycloak.conf.

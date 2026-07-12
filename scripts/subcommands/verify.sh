@@ -65,11 +65,24 @@ _verify_install() {
 
 _verify_config() {
   local etc_dir="$1"
-  if [[ -f "$etc_dir/keycloak.conf" ]] && grep -qE '^db=' "$etc_dir/keycloak.conf"; then
-    validate_item PASS config "$etc_dir/keycloak.conf rendered"
-  else
-    validate_item FAIL config "keycloak.conf missing or has no db= (run: kcimage configure)"
+  local conf="$etc_dir/keycloak.conf"
+  if [[ ! -f "$conf" ]] || ! grep -qE '^db=' "$conf"; then
+    validate_item FAIL config "keycloak.conf missing or has no db= (run: kcimage install)"
+    return
   fi
+  # The keycloak service user opens this file directly at runtime (KC_CONFIG_FILE)
+  # and won't start if it can't read it. When the service user exists (a real
+  # install) and we're root, confirm readability — catch it here, not at node boot.
+  if [[ "${EUID:-$(id -u)}" -eq 0 ]] && getent passwd "$KC_USER" > /dev/null 2>&1 &&
+    command -v runuser > /dev/null 2>&1; then
+    if ! runuser -u "$KC_USER" -- test -r "$conf" 2> /dev/null; then
+      validate_item FAIL config "$conf not readable by '$KC_USER' (fix: chown root:$KC_GROUP $conf)"
+      return
+    fi
+    validate_item PASS config "$conf rendered, readable by $KC_USER"
+    return
+  fi
+  validate_item PASS config "$conf rendered"
 }
 
 _verify_selinux() {
