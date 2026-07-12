@@ -101,6 +101,7 @@ sudo kcimage install --keycloak-version 26.2.0 --db-vendor mysql --activate
 | `--keycloak-version <v>` | Keycloak version to install (required), e.g. `26.1.4` |
 | `--db-vendor <v>` | `postgres` or `mysql` (required; baked into the AMI) |
 | `--java-package <pkg>` | OpenJDK package (default `java-21-openjdk-headless`) |
+| `--providers-dir <dir>` | Custom provider JARs (default `~/keycloak-custom-providers`) |
 | `--activate` | Point `/opt/keycloak/current` at this version |
 
 ### `verify` — validate the install
@@ -125,6 +126,22 @@ kcimage seal --check
 Removes secrets, environment-specific config, runtime state, and machine
 identity, then **fails** if anything sensitive remains.
 
+### `clean` — undo an install
+
+```bash
+# Preview exactly what would be removed (changes nothing)
+kcimage --dry-run clean
+
+# Return the model instance to a pristine, ready-to-install state
+sudo kcimage clean --yes
+```
+
+Inverts `install`: removes Keycloak, config, runtime state, the systemd units,
+the boot script, the service user, and the SELinux rules. **Keeps** the toolkit
+(`kcimage`), OpenJDK (unless `--purge-java`), and your
+`~/keycloak-custom-providers`. Idempotent — reports `already clean` when there is
+nothing to remove. Mostly for testing, but handy to reset a model instance.
+
 ### `version` — show versions
 
 ```bash
@@ -136,26 +153,30 @@ kcimage version
 ## Custom providers
 
 Custom Keycloak **providers** are source-controlled separately and baked into
-the build. Put your provider JARs on the model instance under
-`/opt/keycloak-custom/providers` **before** running `install` — it copies them
-into the active install and `kc.sh build` bakes them in. (Custom **themes** are
-packaged as provider JARs too — best practice — so they go here as well.)
+the build. Put your provider JARs in **`~/keycloak-custom-providers`** (created
+for you by `bootstrap.sh`) on the model instance **before** running `install` —
+it copies every `*.jar` into the active install and `kc.sh build` bakes them in.
+(Custom **themes** are packaged as provider JARs too — best practice — so they go
+here as well.)
 
 ```text
-/opt/keycloak-custom/
-└── providers/    # your provider JARs (themes packaged as JARs go here too)
+~/keycloak-custom-providers/
+├── my-provider.jar     # your provider JARs (flat; themes-as-JARs go here too)
+└── my-theme.jar
 ```
 
 Example:
 
 ```bash
-sudo mkdir -p /opt/keycloak-custom/providers
-sudo cp my-provider.jar /opt/keycloak-custom/providers/
+cp my-provider.jar ~/keycloak-custom-providers/
 
 sudo kcimage install --keycloak-version 26.1.4 --db-vendor mysql
 ```
 
-Because the assets live outside the versioned install, `install` re-deploys and
+The folder lives in the invoking user's home — the same place the release tarball
+is downloaded and extracted — so it is operator-owned and easy to populate by
+hand. Point `install`/`verify` at a different location with `--providers-dir`.
+Because the JARs live outside the versioned install, `install` re-deploys and
 re-builds them on every install/update — so they **carry across Keycloak
 upgrades** automatically.
 

@@ -81,8 +81,8 @@ Three roles, each in its own tree so none can be mistaken for another:
     current -> keycloak-<version>
 
 # Role B — custom provider JARs (source-controlled; deployed into current/ before build)
-/opt/keycloak-custom/
-    providers/     # themes ship as provider JARs too (best practice)
+~/keycloak-custom-providers/   # operator-owned, in the invoking user's home
+    *.jar                      # flat; themes ship as provider JARs too (best practice)
 
 # Config
 /etc/keycloak/
@@ -103,9 +103,13 @@ Three roles, each in its own tree so none can be mistaken for another:
 - **Role A** (`/opt/keycloak/`) holds only Keycloak installations and the
   `current` symlink. The `current` symlink is the single mutable pointer, and
   it is swapped **only on the golden instance** during version preparation.
-- **Role B** (`/opt/keycloak-custom/`) holds operator-authored themes,
-  providers, and scripts. It is never itself an installation. Its contents are
-  copied into `/opt/keycloak/current` before `kc.sh build`.
+- **Role B** (`~/keycloak-custom-providers/`) holds operator-authored provider
+  JARs (themes ship as JARs too). It lives in the invoking user's home — the
+  same place the release tarball is downloaded and extracted — so it is
+  operator-owned and populated by hand; `bootstrap.sh` creates it. It is never
+  itself an installation. Its `*.jar` contents are copied into
+  `/opt/keycloak/current/providers` before `kc.sh build`. Override the location
+  with `install`/`verify --providers-dir`.
 - **Role C** (`/var/lib`, `/var/log`, `/var/backups`) holds mutable runtime
   state and is excluded from the AMI's environment-neutral guarantee (sanitized
   by `kcimage seal`).
@@ -131,10 +135,12 @@ Three roles, each in its own tree so none can be mistaken for another:
 
 ### Negative / Trade-offs
 
-- Introduces a new top-level path (`/opt/keycloak-custom`) that must be created,
-  owned, and SELinux-labeled by the installer (addressed in the SELinux ADR).
-- `/opt/keycloak-custom` holds only `providers/` (custom provider JARs; themes
-  ship as JARs too, per best practice). The earlier `themes/` and `scripts/`
+- Role B lives in a user home (`~/keycloak-custom-providers`) rather than a
+  system path, so it inherits the home's ownership and default `user_home_t`
+  label — no dedicated SELinux fcontext rule is needed (it is read at
+  deploy-time only, before the JARs land in the labeled install tree).
+- Role B holds a flat set of `*.jar` (custom provider JARs; themes ship as JARs
+  too, per best practice). The earlier `providers/`, `themes/`, and `scripts/`
   subdirectories were dropped to keep a single, unambiguous deploy path.
 - The `current` symlink is meaningful only on the golden instance; on ASG
   nodes it is effectively frozen at bake time. Operators must understand that

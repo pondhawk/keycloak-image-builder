@@ -39,26 +39,26 @@ setup() {
 }
 
 @test "verify passes providers when every custom JAR is deployed" {
-  local custom="$BATS_TEST_TMPDIR/custom" home="$BATS_TEST_TMPDIR/home"
-  mkdir -p "$custom/providers" "$home/providers"
-  echo x > "$custom/providers/foo.jar"
+  local pdir="$BATS_TEST_TMPDIR/prov" home="$BATS_TEST_TMPDIR/home"
+  mkdir -p "$pdir" "$home/providers"
+  echo x > "$pdir/foo.jar"
   echo x > "$home/providers/foo.jar"
-  run "$KCIMAGE" verify --custom-dir "$custom" --home "$home"
+  run "$KCIMAGE" verify --providers-dir "$pdir" --home "$home"
   [[ "$output" == *"[PASS] providers"* ]]
 }
 
 @test "verify fails providers when a custom JAR is missing from the install" {
-  local custom="$BATS_TEST_TMPDIR/custom" home="$BATS_TEST_TMPDIR/home"
-  mkdir -p "$custom/providers" "$home/providers"
-  echo x > "$custom/providers/foo.jar"   # never copied to the install
-  run "$KCIMAGE" verify --custom-dir "$custom" --home "$home"
+  local pdir="$BATS_TEST_TMPDIR/prov" home="$BATS_TEST_TMPDIR/home"
+  mkdir -p "$pdir" "$home/providers"
+  echo x > "$pdir/foo.jar"   # never copied to the install
+  run "$KCIMAGE" verify --providers-dir "$pdir" --home "$home"
   [[ "$output" == *"[FAIL] providers"* ]]
   [[ "$output" == *"foo.jar"* ]]
 }
 
-@test "verify skips providers when there are no custom providers" {
-  local custom="$BATS_TEST_TMPDIR/custom"
-  mkdir -p "$custom/providers"
-  run "$KCIMAGE" verify --custom-dir "$custom"
+@test "verify skips providers when the providers dir is empty" {
+  local pdir="$BATS_TEST_TMPDIR/prov"
+  mkdir -p "$pdir"
+  run "$KCIMAGE" verify --providers-dir "$pdir"
   [[ "$output" == *"[SKIP] providers"* ]]
 }

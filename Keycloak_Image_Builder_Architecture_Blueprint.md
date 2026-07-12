@@ -120,8 +120,8 @@ keycloak-image-builder/
     keycloak-<version>/
     current -> keycloak-<version>
 
-/opt/keycloak-custom/                 (Role B: source-controlled custom provider JARs)
-    providers/                        (themes ship as provider JARs too)
+~/keycloak-custom-providers/          (Role B: operator-owned custom provider JARs)
+    *.jar                             (flat; themes ship as provider JARs too)
 
 /etc/keycloak/                        (config)
     keycloak.conf
@@ -179,7 +179,7 @@ Themes ship as provider JARs too (best practice), so they go here as well.
 
 Store source assets under:
 
--   /opt/keycloak-custom/providers
+-   ~/keycloak-custom-providers   (flat *.jar; created by bootstrap.sh)
 
 Deploy into the active installation (`/opt/keycloak/current`) before
 running `kc.sh build`.
@@ -246,25 +246,20 @@ Provide a single administration command:
 
 kcimage
 
-Minimum commands:
+KIB is a model-instance build tool, not a production-node console (nodes are
+cattle). The command surface is deliberately small:
 
--   install
--   configure
--   build
--   check
--   version
--   start
--   stop
--   restart
--   status
--   logs
--   journal
--   health
--   verify
--   cluster
--   upgrade
--   rollback
--   seal
+-   `install` — install/update Keycloak on the model (renders neutral config,
+    deploys custom provider JARs, runs `kc.sh build`, installs units + SELinux)
+-   `verify` — offline pre-seal validation (Java, build, config, SELinux, units,
+    providers)
+-   `seal` — sanitize the instance for imaging + neutrality gate
+-   `clean` — invert `install`, returning the model to a pristine state (testing)
+-   `version` — show KIB + Keycloak versions
+
+Runtime lifecycle (start/stop/status/logs/health) is systemd + journald on the
+ASG nodes, not KIB. Upgrades/rollbacks are AMI + ASG operations (ADR-0006/0007),
+not toolkit subcommands.
 
 ------------------------------------------------------------------------
 

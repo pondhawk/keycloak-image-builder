@@ -13,9 +13,10 @@ All notable changes to KIB are documented here. Format loosely follows
 
 ### Changed
 - **Dropped AWS Secrets Manager** for boot config — the node now reads config (incl. DB creds) from launch-template user-data (KEY=VALUE, KC_* names) + private IP from IMDS, split into keycloak.env + tmpfs secrets.env. No AWS CLI, no jq, no VPC endpoint / secrets IAM. ADR-0008 revised with the threat-model rationale.
-- **Scope consolidation:** `kcimage` reduced to four model-instance commands —
-  `install` (now also renders neutral config + runs `kc.sh build` + SELinux),
-  `verify`, `seal` (new; neutrality gate with `--check`), and `version`.
+- **Scope consolidation:** `kcimage` reduced to four core model-instance
+  commands — `install` (now also renders neutral config + runs `kc.sh build` +
+  SELinux), `verify`, `seal` (new; neutrality gate with `--check`), and
+  `version` (plus `clean`, below, for testing).
   Dropped the pets-oriented commands (`start`/`stop`/`restart`/`status`/`logs`/
   `journal`/`cluster`/`upgrade`/`rollback`/`health`) and folded `configure`/
   `build`/`check`/`selinux` into `install`/`verify`. Rationale: cattle/immutable
@@ -24,17 +25,24 @@ All notable changes to KIB are documented here. Format loosely follows
 
 ### Added
 - `install` now **deploys custom provider JARs** from
-  `/opt/keycloak-custom/providers` into the active install before `kc.sh build`
-  (ADR-0001, blueprint §8) — previously it only created the directory. Themes
-  ship as provider JARs (best practice), so only providers is supported. Assets
-  carry across Keycloak upgrades; README documents the workflow. `verify` now
+  `~/keycloak-custom-providers` (flat `*.jar`) into the active install before
+  `kc.sh build` (ADR-0001, blueprint §8) — previously it only created the
+  directory. Themes ship as provider JARs (best practice), so only providers is
+  supported. Assets carry across Keycloak upgrades; README documents the
+  workflow. Override the location with `--providers-dir`. `verify` now
   confirms **every** custom provider JAR landed in the install (FAILs, listing
   any that didn't).
-- Boot secret-fetch implemented in `boot/configure-node.sh`: IMDSv2 (token +
-  private IP + region), one Secrets Manager `get-secret-value` for the cluster's
-  JSON secret, split into `keycloak.env` (non-secret) and tmpfs `secrets.env`
-  (0640; credentials + optional bootstrap admin). Never logs secrets; env-override
-  hooks make the split Bats-testable without IMDS/AWS.
+- `clean` command — inverts `install`, returning the model instance to a
+  pristine, ready-to-install state (removes Keycloak, config, state, units, boot
+  script, service user, SELinux rules). Keeps the toolkit, OpenJDK (unless
+  `--purge-java`), and `~/keycloak-custom-providers`. Idempotent (reports
+  `already clean`), dry-run aware, requires `--yes` for a real run. Mostly for
+  testing; confirm a torn-down state with `kcimage --dry-run clean`.
+- Boot node configuration implemented in `boot/configure-node.sh`: IMDSv2 (token
+  + private IP) + launch-template user-data (KEY=VALUE, KC_* names), split into
+  `keycloak.env` (non-secret) and tmpfs `secrets.env` (0640; DB credentials +
+  optional bootstrap admin). No AWS CLI / jq. Never logs secrets; env-override
+  hooks make the split Bats-testable without IMDS.
 - `seal` prunes non-`current` Keycloak installs under `/opt/keycloak` (keeps
   only the active version) — matters when the model instance is reused for OS
   patching, where old versions would otherwise accumulate into every AMI.

@@ -23,7 +23,7 @@ AMI); rollback is the previous AMI (+ RDS snapshot when schema migrated).
 - **`kcimage`** — Bash dispatcher + `lib/` helpers + `subcommands/`.
 - **Config** — `/etc/keycloak/{keycloak.conf,keycloak.env,bootstrap.env}`.
 - **Install** — `/opt/keycloak/keycloak-<ver>` + `current` symlink.
-- **Custom assets** — `/opt/keycloak-custom/{themes,providers,scripts}`.
+- **Custom providers** — `~/keycloak-custom-providers/*.jar` (operator-owned).
 - **State** — `/var/lib|log|backups/keycloak`; secrets in `/run/keycloak` (tmpfs).
 - **Units** — `keycloak-config.service` (root oneshot), `keycloak.service`.
 - **Logging** — journald → (opt-in) Fluent Bit → CloudWatch.

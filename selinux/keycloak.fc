@@ -5,7 +5,6 @@
 
 /opt/keycloak(/.*)?              usr_t
 /opt/keycloak/current/bin(/.*)?  bin_t
-/opt/keycloak-custom(/.*)?       usr_t
 /etc/keycloak(/.*)?              etc_t
 /var/lib/keycloak(/.*)?          var_lib_t
 /var/log/keycloak(/.*)?          var_log_t

@@ -45,7 +45,7 @@ ADR-0013, not through this scale-to-0 path.
 
 1. Install the new Keycloak version side-by-side under
    `/opt/keycloak/keycloak-<new>`.
-2. Deploy custom assets from `/opt/keycloak-custom`; run `kc.sh build` for the
+2. Deploy custom provider JARs from `~/keycloak-custom-providers`; run `kc.sh build` for the
    AMI's `db.vendor`.
 3. `kcimage verify` — offline checks (Java, build success, units, SELinux
    contexts).
