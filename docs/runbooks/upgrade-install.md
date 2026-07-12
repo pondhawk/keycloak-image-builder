@@ -1,25 +1,27 @@
 # Runbook — Upgrade Keycloak
 
 Move the model to a **new Keycloak version**, side-by-side with the old one, and
-leave it **ready for image creation**. This produces a new AMI at the new
+leave it **ready for image creation**. This produces a new image at the new
 version.
 
 Use this when: you are changing the **Keycloak version** (e.g. `26.1.4` →
 `26.2.0`). For OS security patches at the *same* Keycloak version, use
-[OS patch / AMI refresh](os-patch.md) instead — it rolls out zero-downtime.
+[OS patch / image refresh](os-patch.md) instead — it rolls out zero-downtime.
 
-> **This is a schema-migrating change.** The AMI you build here is deployed with
+> **This is a schema-migrating change.** The image you build here is deployed with
 > the **scale-to-0 cutover** (ADR-0006), which has a planned downtime window and
 > a mandatory RDS snapshot. That happens on the AWS side — see
-> [Deploy to AWS](deploy-aws.md). This runbook only builds the AMI.
+> [Deploy to AWS](deploy-aws.md). This runbook only builds the image.
 
 ---
 
 ## Before you start
 
 - **`kcimage` is on your `PATH`** ([Install the toolkit](../../README.md#install-the-toolkit)).
-- **Use the same model instance and the same `--db-vendor`** as the AMI you are
-  replacing — the vendor is fixed for the life of that AMI lineage.
+- **Use the model instance that already has the install you're upgrading.**
+  You do **not** pass `--db-vendor` — `upgrade` reads the vendor from the model,
+  so it can never change the image's baked vendor. (A model with no install
+  yet is a [Fresh install](fresh-install.md), not an upgrade.)
 - **SELinux Enforcing:**
   ```bash
   getenforce        # must print: Enforcing
@@ -34,19 +36,24 @@ Use this when: you are changing the **Keycloak version** (e.g. `26.1.4` →
 ### 1. (Optional) preview
 
 ```bash
-kcimage --dry-run install --keycloak-version 26.2.0 --db-vendor postgres --activate
+kcimage --dry-run upgrade --keycloak-version 26.2.0
 ```
 
-### 2. Install the new version side-by-side and activate it
+### 2. Upgrade to the new version (side-by-side, activated)
 
 The new version installs under `/opt/keycloak/keycloak-<new>` next to the old
-one; `--activate` switches the `/opt/keycloak/current` symlink to it **on this
-model instance only**. Custom providers are re-deployed and `kc.sh build` runs
-for the new version.
+one, and `upgrade` **activates it by default** — switching the
+`/opt/keycloak/current` symlink to it **on this model instance only**. The DB
+vendor, custom providers, and config carry over from the existing install;
+`kc.sh build` runs for the new version.
 
 ```bash
-sudo kcimage install --keycloak-version 26.2.0 --db-vendor postgres --activate
+sudo kcimage upgrade --keycloak-version 26.2.0
 ```
+
+(To pre-download a version during business hours without switching to it, add
+`--stage`, then re-run this same command later without `--stage` to activate and
+build it.)
 
 ### 3. Verify
 
@@ -59,7 +66,7 @@ Confirm it reports the new version and every check passes.
 ### 4. Seal for imaging
 
 `seal` also prunes the old, non-`current` Keycloak versions so they don't
-accumulate into the AMI — only the activated version is kept.
+accumulate into the image — only the activated version is kept.
 
 ```bash
 sudo kcimage seal
@@ -79,9 +86,12 @@ cutover refuses to proceed without a recent one.
 
 ## Troubleshooting
 
-- **`current` still points at the old version** — you omitted `--activate`.
-  `verify` will report the old version. Re-run the install with `--activate`.
+- **`current` still points at the old version** — you ran `upgrade --stage`,
+  which lays the version down without switching to it. `verify` will report the
+  old version. Re-run the same `upgrade` **without** `--stage` to activate it.
+- **`no existing install found`** — this model has no install to upgrade. Do a
+  [Fresh install](fresh-install.md) instead (`install --db-vendor …`).
 - **Provider incompatible with the new version** — `kc.sh build` (inside
-  `install`) will fail. Update the provider JAR in `~/keycloak-custom-providers`
-  for the new Keycloak version and re-run `install`.
+  `upgrade`) will fail. Update the provider JAR in `~/keycloak-custom-providers`
+  for the new Keycloak version and re-run `upgrade`.
 - Other failures behave exactly as in [Fresh install](fresh-install.md#troubleshooting).

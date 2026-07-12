@@ -46,6 +46,23 @@ setup() {
   [[ "$output" == *"install complete"* ]]
 }
 
+@test "dry-run install (default) activates and builds" {
+  run "$KCIMAGE" --dry-run install --keycloak-version 26.1.4 --db-vendor postgres --etc-dir "$BATS_TEST_TMPDIR/etc"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"current -> keycloak-26.1.4"* ]]
+  [[ "$output" == *"kc.sh build"* ]]
+}
+
+@test "install refuses when the model already has an install (greenfield-only)" {
+  local etc="$BATS_TEST_TMPDIR/etc"
+  mkdir -p "$etc"
+  printf 'db=mysql\n' > "$etc/keycloak.conf"
+  run "$KCIMAGE" --dry-run install --keycloak-version 26.1.4 --db-vendor postgres --etc-dir "$etc"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"already installed"* ]]
+  [[ "$output" == *"upgrade"* ]]
+}
+
 @test "dry-run install creates nothing" {
   run "$KCIMAGE" --dry-run install --keycloak-version 26.1.4 --db-vendor postgres --etc-dir "$BATS_TEST_TMPDIR/etc"
   [ "$status" -eq 0 ]

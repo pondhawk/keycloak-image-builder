@@ -19,7 +19,7 @@ it. To reset an instance that already has one, use
   getenforce        # must print: Enforcing
   ```
 - You know the **Keycloak version** (e.g. `26.1.4`) and the **DB vendor**
-  (`postgres` or `mysql`) this AMI is for. The vendor is baked in — one AMI per
+  (`postgres` or `mysql`) this image is for. The vendor is baked in — one image per
   vendor.
 - **(Optional) custom providers:** drop provider JARs (themes ship as JARs too)
   into `~/keycloak-custom-providers/` now, before installing:
@@ -44,16 +44,17 @@ kcimage --dry-run install --keycloak-version 26.1.4 --db-vendor postgres
 Installs OpenJDK 21, the Keycloak distribution, the service user and
 directories, the neutral `keycloak.conf`, your custom providers, runs
 `kc.sh build`, and lays down the systemd units, boot script, and SELinux
-contexts. `--activate` points `/opt/keycloak/current` at this version.
+contexts. By default it **activates** this version — points
+`/opt/keycloak/current` at it — which is what you want here.
 
 ```bash
-sudo kcimage install --keycloak-version 26.1.4 --db-vendor postgres --activate
+sudo kcimage install --keycloak-version 26.1.4 --db-vendor postgres
 ```
 
-For a MySQL AMI, swap the vendor (build a separate AMI):
+For a MySQL image, swap the vendor (build a separate image):
 
 ```bash
-sudo kcimage install --keycloak-version 26.1.4 --db-vendor mysql --activate
+sudo kcimage install --keycloak-version 26.1.4 --db-vendor mysql
 ```
 
 ### 3. Verify the install
@@ -83,7 +84,7 @@ sudo kcimage seal
 The model is now environment-neutral and sanitized. **Do not boot Keycloak or
 run any further `kcimage` command on it** — that would re-introduce state.
 
-➡️ Continue in the [**Deploy to AWS**](deploy-aws.md) runbook to create the AMI
+➡️ Continue in the [**Deploy to AWS**](deploy-aws.md) runbook to create the image
 and roll it to your Auto Scaling Group.
 
 ---
@@ -93,8 +94,12 @@ and roll it to your Auto Scaling Group.
 - **`verify` reports `[FAIL] SELinux`** — SELinux is not Enforcing. Set it
   (`setenforce 1` and fix `/etc/selinux/config`), then re-run.
 - **`verify` reports `[FAIL] providers` listing a JAR** — the JAR is in
-  `~/keycloak-custom-providers` but didn't reach the install. Re-run
-  `kcimage install …` (it re-deploys providers), then `verify` again.
+  `~/keycloak-custom-providers` but didn't reach the install. Re-deploy with
+  `kcimage upgrade --keycloak-version <this version>` (same version re-renders,
+  re-deploys providers, and rebuilds), then `verify` again.
+- **`install` says `already installed`** — `install` is greenfield-only. This
+  model already has an install; use [Upgrade](upgrade-install.md) to change the
+  version, or [Clean install](clean-install.md) to start over.
 - **`seal` fails the neutrality gate** — something environment-specific is still
   present (an env value or secret). The failure names it; remove it and re-run
   `kcimage seal`.

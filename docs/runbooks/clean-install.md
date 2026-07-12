@@ -59,8 +59,8 @@ The instance is now equivalent to a bare model. Do a full
 # (optional) preview
 kcimage --dry-run install --keycloak-version 26.1.4 --db-vendor postgres
 
-# install + activate
-sudo kcimage install --keycloak-version 26.1.4 --db-vendor postgres --activate
+# install (activates by default)
+sudo kcimage install --keycloak-version 26.1.4 --db-vendor postgres
 
 # verify
 sudo kcimage verify

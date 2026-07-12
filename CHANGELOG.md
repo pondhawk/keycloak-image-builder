@@ -11,7 +11,18 @@ All notable changes to KIB are documented here. Format loosely follows
   RHEL repos and the packaging approach needs its own evaluation. On-node
   JSON→journald logging is unaffected.
 
-### Changed
+- **Split `install` into `install` + `upgrade`; both activate by default.**
+  `install` is now **greenfield-only** — it establishes a fresh lineage, requires
+  `--db-vendor`, and refuses if the model already has an install (pointing you to
+  `upgrade` or `clean`). The new **`upgrade`** command moves an existing install
+  to a new Keycloak version and **reads the DB vendor from the model** (no
+  `--db-vendor`), so an upgrade structurally *cannot* change the image's baked
+  vendor — closing a footgun where `install --db-vendor <wrong>` on an existing
+  lineage would silently mis-build the image and only fail at boot. Both commands
+  point `/opt/keycloak/current` at the version by default (the old opt-in
+  `--activate` is gone); `upgrade --stage` is the opt-out that lays a version down
+  without activating/building, for pre-downloading ahead of a maintenance window.
+  `install` and `upgrade` share one internal pipeline (`_install_core`).
 - **README is now a runbook hub.** Rewrote it around Description · Requirements ·
   Install the toolkit · a Runbooks menu, with self-contained, copy-paste runbooks
   in `docs/runbooks/` (`fresh-install`, `upgrade-install`, `os-patch`,

@@ -2,15 +2,15 @@
 
 `kcimage` — a Bash CLI that turns a fresh **RHEL-family 9+** instance into a
 **golden Keycloak model**, then sanitizes it so you can bake an
-environment-neutral **AMI**. That AMI is what your Auto Scaling Group launches.
+environment-neutral **image**. That image is what your Auto Scaling Group launches.
 
 > **Status:** v1.0.0 — the toolkit is complete and CI is green. Real-instance
 > validation on RHEL-family 9 is underway. See `ROADMAP.md`.
 
 KIB is a **model-instance build tool**, not a production-node console (nodes are
 cattle). On the model instance it does exactly three things —
-**install/update → verify → prepare-for-image** — and then you bake an AMI from
-it. Everything a running node needs is either baked into the AMI or injected at
+**install/update → verify → prepare-for-image** — and then you bake an image from
+it. Everything a running node needs is either baked into the image or injected at
 boot from launch-template user-data; nobody ever runs `kcimage` on a production
 node.
 
@@ -27,7 +27,7 @@ node.
                                    │  AWS Console: Create image
                                    ▼
                          ┌───────────────────┐
-                         │   Golden AMI      │   one per DB vendor
+                         │   Golden image    │   one per DB vendor
                          └─────────┬─────────┘
                                    │  Launch Template + user-data (KC_* keys)
                                    ▼
@@ -75,7 +75,7 @@ node.
   | MySQL | `mysql` | 8.0, 8.4 (LTS) — 5.7 is **not** supported |
 
 - **The DB vendor is baked in at build time** (it drives `kc.sh build`), so a
-  golden AMI is Postgres **or** MySQL — build one AMI per vendor you run.
+  golden image is Postgres **or** MySQL — build one image per vendor you run.
 
 ---
 
@@ -83,7 +83,7 @@ node.
 
 **Required first step for every runbook below.** Download the latest release,
 extract it, and run `bootstrap.sh` to put `kcimage` on your `PATH`. (`make` is
-*not* needed on the model instance — `kcimage install` bakes everything the AMI
+*not* needed on the model instance — `kcimage install` bakes everything the image
 needs.)
 
 ```bash
@@ -121,9 +121,9 @@ From there, the **AWS** runbook takes over.
 |---------|--------------------------|---------|
 | [**Fresh install**](docs/runbooks/fresh-install.md) | Build a golden model from a bare instance for the first time | Model instance |
 | [**Upgrade Keycloak**](docs/runbooks/upgrade-install.md) | Move the model to a new Keycloak version (side-by-side, then re-bake) | Model instance |
-| [**OS patch / AMI refresh**](docs/runbooks/os-patch.md) | Apply OS security patches and re-bake the same Keycloak version | Model instance |
+| [**OS patch / image refresh**](docs/runbooks/os-patch.md) | Apply OS security patches and re-bake the same Keycloak version | Model instance |
 | [**Clean install**](docs/runbooks/clean-install.md) | Reset the model to a pristine state and start over | Model instance |
-| [**Deploy to AWS**](docs/runbooks/deploy-aws.md) | Create the AMI, wire the launch template + user-data, and roll it to the ASG | AWS |
+| [**Deploy to AWS**](docs/runbooks/deploy-aws.md) | Create the image, wire the launch template + user-data, and roll it to the ASG | AWS |
 
 Every command supports a preview that changes nothing:
 
@@ -141,7 +141,8 @@ The runbooks above are the intended path; this is the flat reference.
 
 | Command | What it does |
 |---------|--------------|
-| `install` | Install/update Keycloak on the model: Java, distribution, service user, directories, neutral `keycloak.conf`, custom providers, `kc.sh build`, systemd units + boot script, SELinux contexts. Requires `--keycloak-version` and `--db-vendor`. |
+| `install` | Establish a **fresh** Keycloak install (lineage) on a clean model: Java, distribution, service user, directories, neutral `keycloak.conf`, custom providers, `kc.sh build`, systemd units + boot script, SELinux contexts. Greenfield-only. Requires `--keycloak-version` and `--db-vendor`. |
+| `upgrade` | Move an **existing** install to a new Keycloak version (side-by-side; activates by default). Reads the DB vendor from the model — **no `--db-vendor`**, so it can't change the baked vendor. `--stage` pre-downloads without activating. Requires `--keycloak-version`. |
 | `verify` | Offline pre-seal validation: Java, install, build, config, SELinux Enforcing, systemd units, and that every custom provider landed. Exits non-zero on any failure. |
 | `seal` | Sanitize the instance for imaging (remove secrets, env config, runtime state, machine identity) and run the neutrality gate. `--check` runs the gate only. |
 | `clean` | Invert `install`, returning the model to a pristine state. Keeps the toolkit, OpenJDK, and `~/keycloak-custom-providers`. `--yes` to apply; mostly for testing. |
