@@ -22,6 +22,11 @@ All notable changes to KDT are documented here. Format loosely follows
   image. `boot/configure-node.sh` renders `keycloak.env` self-contained.
 
 ### Added
+- Boot secret-fetch implemented in `boot/configure-node.sh`: IMDSv2 (token +
+  private IP + region), one Secrets Manager `get-secret-value` for the cluster's
+  JSON secret, split into `keycloak.env` (non-secret) and tmpfs `secrets.env`
+  (0640; credentials + optional bootstrap admin). Never logs secrets; env-override
+  hooks make the split Bats-testable without IMDS/AWS.
 - `ami-clean` prunes non-`current` Keycloak installs under `/opt/keycloak` (keeps
   only the active version) — matters when the model instance is reused for OS
   patching, where old versions would otherwise accumulate into every AMI.

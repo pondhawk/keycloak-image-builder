@@ -25,9 +25,11 @@ kcadmin ami-clean         # then create the AMI in the AWS Console
 
 ## Remaining
 
-- Boot secret-fetch (ADR-0008) in `boot/configure-node.sh` (Secrets Manager +
-  IMDS). Uses AWS CLI v2 + `jq`, installed as documented model prerequisites
-  (README) — KDT does not install third-party tooling.
+- ~~Boot secret-fetch (ADR-0008)~~ — **done**: `boot/configure-node.sh` reads
+  IMDSv2 + fetches the cluster's JSON secret and splits it (secret→tmpfs,
+  non-secret→`keycloak.env`). The split is Bats-tested; the live IMDS/AWS path is
+  exercised by the real-instance test below. Uses AWS CLI v2 + `jq` (documented
+  model prerequisites — KDT does not install third-party tooling).
 - Real-instance test on a RHEL-family 10 host, e.g. Rocky Linux 10 (install → verify → ami-clean → image).
 - Operational docs: upgrade runbook, OS-patching runbook (ADR-0013), README polish.
 - **Centralized logging** (Fluent Bit → CloudWatch, ADR-0010) — deferred

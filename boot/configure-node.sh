@@ -9,17 +9,18 @@
 #   4. split it — non-secret fields -> /etc/keycloak/keycloak.env
 #                 secret fields     -> /run/keycloak/secrets.env (tmpfs)
 #
-# SKELETON: steps 1-3 (user-data + IMDS + Secrets Manager) are the Secrets work;
-# the env render (step 4) is real and self-contained.
-#
 # Requires (model-instance prerequisites, baked into the AMI — see README):
 #   - AWS CLI v2 (official bundle; not in the RHEL repos)
 #   - jq (from dnf: `dnf install jq`)
+#
+# Never logs secret values. Test hooks (override to skip IMDS/AWS): KDT_ETC,
+# KDT_RUN, KDT_IMDS_BASE, KDT_SECRET_ID, KDT_SECRET_JSON, NODE_PRIVATE_IP.
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ETC="/etc/keycloak"
-RUN="/run/keycloak"
+ETC="${KDT_ETC:-/etc/keycloak}"
+RUN="${KDT_RUN:-/run/keycloak}"
+IMDS_BASE="${KDT_IMDS_BASE:-http://169.254.169.254}"
 
 # The env template sits beside this script when installed, or under ../templates
 # when run from the repo/tarball.
@@ -35,31 +36,112 @@ done
   exit 1
 }
 
-install -d -m 0750 "$ETC"
-install -d -m 0750 -o root -g keycloak "$RUN"
+_imds_get() { # <token> <path>
+  curl -sf -H "X-aws-ec2-metadata-token: $1" "$IMDS_BASE/latest/$2"
+}
 
-# 1. TODO(boot): read the cluster secret name from user-data, and this node's
-#    private IP from IMDSv2, e.g.:
-#      KDT_SECRET_ID=$(...from user-data...)
-#      tok=$(curl -sX PUT .../api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 60')
-#      export NODE_PRIVATE_IP=$(curl -s -H "X-aws-ec2-metadata-token: $tok" .../local-ipv4)
-#
-# 2. TODO(secrets, ADR-0008): fetch the ONE cluster secret and unpack its fields:
-#      json=$(aws secretsmanager get-secret-value --secret-id "$KDT_SECRET_ID" \
-#               --query SecretString --output text)
-#      export KC_DB_URL=$(jq -r .db_url <<<"$json")
-#      export KC_HOSTNAME=$(jq -r .hostname <<<"$json")
-#      export JAVA_OPTS_APPEND=$(jq -r .java_opts_append <<<"$json")
-#      # secret fields -> tmpfs (0640 root:keycloak); bootstrap_admin_* only when
-#      # the DB is uninitialized:
-#      umask 027
-#      { printf 'KC_DB_USERNAME=%s\n' "$(jq -r .db_username <<<"$json")"
-#        printf 'KC_DB_PASSWORD=%s\n' "$(jq -r .db_password <<<"$json")"; } > "$RUN/secrets.env"
+# Extract KDT_SECRET_ID=<value> from user-data (optional 'export', optional quotes).
+_secret_id_from_userdata() {
+  local line
+  line=$(grep -E '(^|[^[:alnum:]_])KDT_SECRET_ID=' <<< "$1" | tail -1 || true)
+  line=${line#*KDT_SECRET_ID=}
+  line=${line%%[[:space:]]*}
+  line=${line#[\"\']}
+  line=${line%[\"\']}
+  printf '%s' "$line"
+}
 
-# 3. Render the non-secret runtime env file (real; only the intended vars).
+_field() { jq -r --arg k "$1" '.[$k] // ""' <<< "$KDT_SECRET_JSON"; }
+
+_require() {
+  [[ -n "$2" ]] || {
+    echo "keycloak-config: secret missing required field: $1" >&2
+    exit 1
+  }
+}
+
+# --- gather inputs (env overrides win, so tests can skip IMDS/AWS) ---
+imds_token=""
+if [[ -z "${NODE_PRIVATE_IP:-}" || -z "${KDT_SECRET_JSON:-}" ]]; then
+  imds_token=$(curl -sf -X PUT "$IMDS_BASE/latest/api/token" \
+    -H "X-aws-ec2-metadata-token-ttl-seconds: 300") || {
+    echo "keycloak-config: IMDSv2 token request failed" >&2
+    exit 1
+  }
+fi
+
+if [[ -z "${NODE_PRIVATE_IP:-}" ]]; then
+  NODE_PRIVATE_IP=$(_imds_get "$imds_token" meta-data/local-ipv4) || {
+    echo "keycloak-config: could not read local-ipv4 from IMDS" >&2
+    exit 1
+  }
+fi
+export NODE_PRIVATE_IP
+
+if [[ -z "${KDT_SECRET_JSON:-}" ]]; then
+  if [[ -z "${KDT_SECRET_ID:-}" ]]; then
+    user_data=$(_imds_get "$imds_token" user-data || true)
+    KDT_SECRET_ID=$(_secret_id_from_userdata "$user_data")
+  fi
+  [[ -n "${KDT_SECRET_ID:-}" ]] || {
+    echo "keycloak-config: KDT_SECRET_ID not found in env or user-data" >&2
+    exit 1
+  }
+  if [[ -z "${AWS_DEFAULT_REGION:-}" ]]; then
+    AWS_DEFAULT_REGION=$(_imds_get "$imds_token" meta-data/placement/region) || {
+      echo "keycloak-config: could not read region from IMDS" >&2
+      exit 1
+    }
+    export AWS_DEFAULT_REGION
+  fi
+  KDT_SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "$KDT_SECRET_ID" \
+    --query SecretString --output text) || {
+    echo "keycloak-config: secretsmanager get-secret-value failed" >&2
+    exit 1
+  }
+fi
+
+# --- unpack the cluster secret ---
+db_url=$(_field db_url)
+db_username=$(_field db_username)
+db_password=$(_field db_password)
+hostname=$(_field hostname)
+java_opts=$(_field java_opts_append)
+bootstrap_user=$(_field bootstrap_admin_username)
+bootstrap_pass=$(_field bootstrap_admin_password)
+
+_require db_url "$db_url"
+_require db_username "$db_username"
+_require db_password "$db_password"
+_require hostname "$hostname"
+
+# --- prepare target dirs ---
+mkdir -p "$ETC" "$RUN"
+chmod 0750 "$RUN"
+if [[ "$(id -u)" -eq 0 ]]; then
+  chown root:keycloak "$RUN" 2> /dev/null || true
+fi
+
+# --- non-secret runtime config -> /etc/keycloak/keycloak.env (via the template) ---
+export KC_DB_URL="$db_url" KC_HOSTNAME="$hostname" JAVA_OPTS_APPEND="$java_opts"
 # shellcheck disable=SC2016  # ${VARS} are envsubst's argument, not shell expansion
 envsubst '${KC_DB_URL} ${KC_HOSTNAME} ${NODE_PRIVATE_IP} ${JAVA_OPTS_APPEND}' \
   < "$TEMPLATE" > "$ETC/keycloak.env"
 chmod 0640 "$ETC/keycloak.env"
+
+# --- secret values -> /run/keycloak/secrets.env (tmpfs, 0640 root:keycloak) ---
+umask 027
+{
+  printf 'KC_DB_USERNAME=%s\n' "$db_username"
+  printf 'KC_DB_PASSWORD=%s\n' "$db_password"
+  if [[ -n "$bootstrap_user" && -n "$bootstrap_pass" ]]; then
+    printf 'KC_BOOTSTRAP_ADMIN_USERNAME=%s\n' "$bootstrap_user"
+    printf 'KC_BOOTSTRAP_ADMIN_PASSWORD=%s\n' "$bootstrap_pass"
+  fi
+} > "$RUN/secrets.env"
+chmod 0640 "$RUN/secrets.env"
+if [[ "$(id -u)" -eq 0 ]]; then
+  chown root:keycloak "$RUN/secrets.env" 2> /dev/null || true
+fi
 
 echo "keycloak-config: node configuration complete"
