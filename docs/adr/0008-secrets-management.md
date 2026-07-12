@@ -156,6 +156,10 @@ access is itself auditable via CloudTrail.
 
 ### Notes
 
+- The boot fetch uses the **AWS CLI v2** and **`jq`**, installed on the model as
+  documented prerequisites (README) and baked into the AMI. KDT does not install
+  third-party tooling; AWS CLI v2 is not in the RHEL repos (official bundle),
+  `jq` is (`dnf`).
 - Boot orchestration and unit wiring → ADR-0005.
 - Config layering (secret vs non-secret) → ADR-0002.
 - Vendor split (`db.vendor` is build-time, not in the secret) → ADR-0003.
