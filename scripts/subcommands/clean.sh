@@ -114,10 +114,7 @@ cmd_clean() {
   _clean_units
   _clean_path "$KC_BOOT_DIR"
   _clean_path "$KC_OPT"
-  _clean_path "$KC_ETC"
-  _clean_path "$KC_VAR_LIB"
-  _clean_path "$KC_VAR_LOG"
-  _clean_path "$KC_VAR_BACKUPS"
+  _clean_path "${KC_OPT}.bak" # stale backup from an interrupted upgrade
   _clean_path "$KC_RUN"
   _clean_selinux
   _clean_user

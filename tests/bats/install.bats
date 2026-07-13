@@ -57,7 +57,7 @@ setup() {
 }
 
 @test "dry-run install plans dist, config render, and build" {
-  run "$KCIMAGE" --dry-run install --keycloak-version 26.1.4 --db-vendor mysql --etc-dir "$BATS_TEST_TMPDIR/etc"
+  run env KIB_CONF_DIR="$BATS_TEST_TMPDIR/etc" "$KCIMAGE" --dry-run install --keycloak-version 26.1.4 --db-vendor mysql
   [ "$status" -eq 0 ]
   [[ "$output" == *"[dry-run]"* ]]
   [[ "$output" == *"would write $BATS_TEST_TMPDIR/etc/keycloak.conf (db=mysql)"* ]]
@@ -66,10 +66,11 @@ setup() {
   [[ "$output" == *"install complete"* ]]
 }
 
-@test "dry-run install (default) activates and builds" {
-  run "$KCIMAGE" --dry-run install --keycloak-version 26.1.4 --db-vendor postgres --etc-dir "$BATS_TEST_TMPDIR/etc"
+@test "dry-run install extracts straight to /opt/keycloak (no versioned dir)" {
+  run env KIB_CONF_DIR="$BATS_TEST_TMPDIR/etc" "$KCIMAGE" --dry-run install --keycloak-version 26.1.4 --db-vendor postgres
   [ "$status" -eq 0 ]
-  [[ "$output" == *"current -> keycloak-26.1.4"* ]]
+  [[ "$output" == *"extract to /opt/keycloak"* ]]
+  [[ "$output" != *"current ->"* ]]
   [[ "$output" == *"kc.sh build"* ]]
 }
 
@@ -77,14 +78,14 @@ setup() {
   local etc="$BATS_TEST_TMPDIR/etc"
   mkdir -p "$etc"
   printf 'db=mysql\n' > "$etc/keycloak.conf"
-  run "$KCIMAGE" --dry-run install --keycloak-version 26.1.4 --db-vendor postgres --etc-dir "$etc"
+  run env KIB_CONF_DIR="$etc" "$KCIMAGE" --dry-run install --keycloak-version 26.1.4 --db-vendor postgres
   [ "$status" -ne 0 ]
   [[ "$output" == *"already installed"* ]]
-  [[ "$output" == *"upgrade"* ]]
+  [[ "$output" == *"clean"* ]]
 }
 
 @test "dry-run install creates nothing" {
-  run "$KCIMAGE" --dry-run install --keycloak-version 26.1.4 --db-vendor postgres --etc-dir "$BATS_TEST_TMPDIR/etc"
+  run env KIB_CONF_DIR="$BATS_TEST_TMPDIR/etc" "$KCIMAGE" --dry-run install --keycloak-version 26.1.4 --db-vendor postgres
   [ "$status" -eq 0 ]
   [ ! -e /opt/keycloak/keycloak-26.1.4 ]
   [ ! -f "$BATS_TEST_TMPDIR/etc/keycloak.conf" ]

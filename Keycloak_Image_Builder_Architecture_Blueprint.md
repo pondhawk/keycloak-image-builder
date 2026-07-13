@@ -117,24 +117,24 @@ keycloak-image-builder/
 /usr/lib/jvm/
     <openjdk-21>                      (installed via dnf, managed by alternatives)
 
-/opt/keycloak/                        (Role A: installations)
-    keycloak-<version>/
-    current -> keycloak-<version>
+/opt/keycloak/                        (Role A: the install — KEYCLOAK_HOME, one version)
+    bin/  lib/  themes/               (immutable, root:root)
+    conf/keycloak.conf               (neutral platform config, baked in, read natively)
+    providers/                       (custom provider JARs land here at build time)
+    data/                            (keycloak-owned; gzip cache, tx logs)
 
 ~/keycloak-custom-providers/          (Role B: operator-owned custom provider JARs)
     *.jar                             (flat; themes ship as provider JARs too)
 
-/etc/keycloak/                        (config)
-    keycloak.conf
-    keycloak.env
-    bootstrap.env
-
-/var/lib/keycloak/                    (Role C: runtime state)
-/var/log/keycloak/
-/var/backups/keycloak/
+/run/keycloak/                        (tmpfs — boot-injected, never on disk / in image)
+    keycloak.env                      (non-secret runtime values)
+    secrets.env                       (DB credentials, bootstrap admin)
 ```
 
-Only the `current` symbolic link changes during upgrades.
+Everything server-side lives under `/opt/keycloak`: one version, no versioned
+subdir and no `current` symlink (this is an image-building node, never
+production — no side-by-side). Only ephemeral, environment-specific config lives
+outside it, on tmpfs. There is no `/etc/keycloak` and no `/var/*` Keycloak tree.
 
 ------------------------------------------------------------------------
 
@@ -142,7 +142,8 @@ Only the `current` symbolic link changes during upgrades.
 
 ## keycloak.conf
 
-Platform configuration only.
+Platform configuration only. Baked into `KEYCLOAK_HOME/conf`
+(`/opt/keycloak/conf/keycloak.conf`) and read natively by `kc.sh`.
 
 Examples:
 
@@ -155,7 +156,8 @@ Examples:
 
 ## keycloak.env
 
-Environment-specific values.
+Environment-specific values. Written at boot to tmpfs
+(`/run/keycloak/keycloak.env`), never to disk.
 
 Examples:
 
@@ -167,7 +169,7 @@ Examples:
 
 ## bootstrap.env
 
-Temporary administrator credentials.
+Temporary administrator credentials, on tmpfs (`/run/keycloak/bootstrap.env`).
 
 Automatically removed after successful initialization.
 
@@ -182,8 +184,8 @@ Store source assets under:
 
 -   ~/keycloak-custom-providers   (flat *.jar; created by bootstrap.sh)
 
-Deploy into the active installation (`/opt/keycloak/current`) before
-running `kc.sh build`.
+Deploy into the install (`/opt/keycloak/providers`) before running
+`kc.sh build`.
 
 ------------------------------------------------------------------------
 
@@ -226,10 +228,14 @@ Production rollback (ASG):
 
 Golden-instance version prep (not production):
 
--   Install new versions side-by-side.
--   Build before activation.
--   Switch the `current` symlink after validation.
--   Preserve previous installation.
+-   `kcimage upgrade` swap-installs the new version in place: it moves the
+    current install aside to `/opt/keycloak.bak`, installs and builds the new
+    version, and deletes the backup **last**, only on success.
+-   Inherits the DB vendor from the existing install (an upgrade can never
+    change the baked vendor).
+-   A failed upgrade rolls back to the previous install from the backup — the
+    two versions coexist only for the duration of the command (no persistent
+    side-by-side, no `current` symlink).
 -   Used only on the golden instance to prepare, test, and validate a
     version before baking the AMI. `kcimage upgrade` / `rollback` operate
     here, not on live ASG nodes.

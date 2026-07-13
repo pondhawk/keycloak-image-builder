@@ -16,11 +16,13 @@ KIB installs Keycloak and its data into **non-standard paths** (ADR-0001), which
 means their SELinux labels are not what stock policy expects and must be managed
 explicitly. The surfaces that need SELinux attention:
 
-- Files: `/opt/keycloak` (installs), `/etc/keycloak` (config),
-  `/var/lib/keycloak`, `/var/log/keycloak`, `/var/backups/keycloak` (state),
-  `/run/keycloak` (tmpfs secrets, ADR-0008). Custom provider JARs live in a user
-  home (`~/keycloak-custom-providers`, ADR-0001) and inherit its default
-  `user_home_t` label — read only at deploy-time, so no dedicated rule is needed.
+- Files: `/opt/keycloak` (the whole install, `KEYCLOAK_HOME`), its `data/`
+  subdir (keycloak-owned runtime state), and `/run/keycloak` (tmpfs env+secrets,
+  ADR-0008). There is no `/etc/keycloak` and no `/var/lib|log|backups/keycloak`:
+  everything server-side lives under `/opt/keycloak` (ADR-0001). Custom provider
+  JARs live in a user home (`~/keycloak-custom-providers`, ADR-0001) and inherit
+  its default `user_home_t` label — read only at deploy-time, so no dedicated
+  rule is needed.
 - Ports: HTTP 8080, management 9000, JGroups 7800 / 57800 (ADR-0009).
 - Fluent Bit reading journald and sending to CloudWatch (ADR-0010).
 - **No TLS material** on instances (TLS terminates at the ALB), so there are no
@@ -57,12 +59,9 @@ correct and **survive a full relabel**.
 
 | Path | Intended context (indicative) | Access |
 |------|------------------------------|--------|
-| `/opt/keycloak`, `/opt/keycloak/current` | `usr_t` / `bin_t` for executables | read/execute |
-| `/opt/keycloak/<ver>/data` | `var_lib_t` | **read/write** — Keycloak's runtime data (gzip cache, tx logs); written in place by the service user |
-| `/etc/keycloak` | `etc_t` | read |
-| `/var/lib/keycloak` | `var_lib_t` | read/write |
-| `/var/log/keycloak` | `var_log_t` | read/write |
-| `/var/backups/keycloak` | `var_t` | read/write |
+| `/opt/keycloak` | `usr_t` | read/execute (immutable install) |
+| `/opt/keycloak/bin` | `bin_t` | read/execute |
+| `/opt/keycloak/data` | `var_lib_t` | **read/write** — Keycloak's runtime data (gzip cache, tx logs); written in place by the service user |
 | `/run/keycloak` (tmpfs) | runtime dir context | read/write |
 
 (Exact type labels are validated on RHEL-family 10 during implementation.)

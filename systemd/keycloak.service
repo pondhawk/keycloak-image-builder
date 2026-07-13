@@ -10,13 +10,13 @@ Requires=keycloak-config.service
 Type=exec
 User=keycloak
 Group=keycloak
-# Config lives in /etc/keycloak, never inside the immutable install (ADR-0002).
-Environment=KC_CONFIG_FILE=/etc/keycloak/keycloak.conf
-EnvironmentFile=/etc/keycloak/keycloak.env
-# Secrets from tmpfs (ADR-0008); '-' = optional (absent when no secrets needed).
+# The neutral keycloak.conf is baked into KEYCLOAK_HOME/conf and read natively
+# (ADR-0002); no KC_CONFIG_FILE needed. Env + secrets are boot-injected onto
+# tmpfs (ADR-0008) by keycloak-config.service (bootstrap-admin creds, when set,
+# are routed into secrets.env); '-' = optional.
+EnvironmentFile=-/run/keycloak/keycloak.env
 EnvironmentFile=-/run/keycloak/secrets.env
-EnvironmentFile=-/run/keycloak/bootstrap.env
-ExecStart=/opt/keycloak/current/bin/kc.sh start --optimized
+ExecStart=/opt/keycloak/bin/kc.sh start --optimized
 Restart=on-failure
 RestartSec=5s
 StandardOutput=journal

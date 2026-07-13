@@ -24,9 +24,13 @@ service or a compiled app.
 - Two DB engines, Postgres default + MySQL co-equal in tests (ADR-0003).
 - Golden instance → `seal` → per-vendor AMI → ASG self-configures at boot
   (ADR-0004, ADR-0005).
-- Config split: neutral `keycloak.conf` baked; `keycloak.env` + secrets at boot
-  (ADR-0002). Secrets from launch-template user-data via tmpfs (ADR-0008).
-- Immutable upgrade = scale-to-0 cutover; symlink swap is golden-instance-only
+- Config split: neutral `keycloak.conf` baked into `/opt/keycloak/conf` (native,
+  no `KC_CONFIG_FILE`); `keycloak.env` + secrets injected at boot onto tmpfs
+  `/run/keycloak` (ADR-0002). From launch-template user-data (ADR-0008).
+- Everything server-side lives under `/opt/keycloak` — one version, no versioned
+  subdir, no `current` symlink; only tmpfs `/run/keycloak` outside (ADR-0001).
+- Immutable upgrade = scale-to-0 cutover; the model-instance `upgrade` is a safe
+  swap (old kept until the new version builds, then deleted; rollback on failure)
   (ADR-0006). Rollback via previous AMI + RDS snapshot (ADR-0007).
 - Clustering via built-in `jdbc-ping` stack; TLS terminates at the ALB (ADR-0009).
 - SELinux Enforcing, pragmatic (manage contexts, no bespoke domain) (ADR-0011).

@@ -6,15 +6,15 @@
 # KEY=VALUE lines using Keycloak's KC_* names (ADR-0008). This script:
 #   1. reads this node's private IP from IMDSv2 (the JGroups bind address)
 #   2. reads user-data from IMDSv2
-#   3. routes each KEY=VALUE line:
-#        secret keys  -> /run/keycloak/secrets.env  (tmpfs, 0640 root:keycloak)
-#        everything else -> /etc/keycloak/keycloak.env
+#   3. routes each KEY=VALUE line, both onto tmpfs (/run/keycloak) so nothing
+#      environment-specific ever touches the disk / image (ADR-0008):
+#        secret keys     -> /run/keycloak/secrets.env  (0640 root:keycloak)
+#        everything else -> /run/keycloak/keycloak.env  (0640 root:keycloak)
 #
-# No AWS CLI, no jq. Never logs secret values. Test hooks (skip IMDS): KIB_ETC,
+# No AWS CLI, no jq. Never logs secret values. Test hooks (skip IMDS):
 # KIB_RUN, KIB_IMDS_BASE, KIB_USERDATA, NODE_PRIVATE_IP.
 set -Eeuo pipefail
 
-ETC="${KIB_ETC:-/etc/keycloak}"
 RUN="${KIB_RUN:-/run/keycloak}"
 IMDS_BASE="${KIB_IMDS_BASE:-http://169.254.169.254}"
 
@@ -54,21 +54,21 @@ if [[ -z "${KIB_USERDATA:-}" ]]; then
   }
 fi
 
-# --- prepare target files ---
-mkdir -p "$ETC" "$RUN"
+# --- prepare target files (both on tmpfs) ---
+mkdir -p "$RUN"
 chmod 0750 "$RUN"
 if [[ "$(id -u)" -eq 0 ]]; then
   chown root:keycloak "$RUN" 2> /dev/null || true
 fi
 
-env_file="$ETC/keycloak.env"
+env_file="$RUN/keycloak.env"
 sec_file="$RUN/secrets.env"
 umask 027
 : > "$env_file"
 : > "$sec_file"
 chmod 0640 "$env_file" "$sec_file"
 if [[ "$(id -u)" -eq 0 ]]; then
-  chown root:keycloak "$sec_file" 2> /dev/null || true
+  chown root:keycloak "$env_file" "$sec_file" 2> /dev/null || true
 fi
 
 # JGroups bind address comes from IMDS, not user-data.

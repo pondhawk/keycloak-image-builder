@@ -32,11 +32,15 @@ here:
   This ambiguity risks an upgrade, cleanup script, or SELinux `restorecon`
   operating on the wrong tree.
 
-The upgrade model is immutable (new AMI + ASG instance refresh is canonical);
-the side-by-side install + `current` symlink swap is used **only on the golden
-instance** to prepare and validate a version before baking. The layout must
-support that side-by-side pattern on the golden instance while keeping the
-three runtime roles cleanly separated.
+The upgrade model is immutable (new AMI + ASG instance refresh is canonical).
+This is an **image-building node, never a production node**, so it never needs
+two Keycloak versions installed side-by-side and never needs a `current`
+pointer: it holds exactly one install at a time. (`upgrade` does move the old
+install briefly aside to `/opt/keycloak.bak` while the new one builds, so a
+failed upgrade rolls back — but that is transient, gone by the time the command
+returns; see ADR-0006.) The layout should therefore keep everything
+server-side in **one place** while keeping the operator's custom assets cleanly
+separated from the install they get copied into.
 
 ## Decision
 
@@ -69,75 +73,81 @@ keycloak-image-builder/
 
 ### 2. Runtime filesystem layout
 
-Three roles, each in its own tree so none can be mistaken for another:
+Everything Keycloak-the-server lives under **one** tree, `/opt/keycloak`
+(`KEYCLOAK_HOME`), in Keycloak's native layout. The only things outside it are
+the operator's custom-asset staging dir (a different role) and the ephemeral
+boot-injected config on tmpfs:
 
 ```text
 # Java — canonical RPM location, installed via dnf, managed by alternatives
 /usr/lib/jvm/<openjdk-21>
 
-# Role A — installations (immutable, versioned; symlink swap only on golden instance)
-/opt/keycloak/
-    keycloak-<version>/
-    current -> keycloak-<version>
+# Role A — the install: KEYCLOAK_HOME, one version, no versioned subdir, no `current`
+/opt/keycloak/                 # root:root, immutable, usr_t
+    bin/                       #   kc.sh (bin_t)
+    lib/                       #   the augmented/optimized server
+    conf/keycloak.conf         #   environment-neutral platform config, baked in, read natively
+    providers/                 #   custom provider JARs land here at build time
+    themes/
+    data/                      #   keycloak-owned (0750), var_lib_t — gzip cache, tx logs
 
-# Role B — custom provider JARs (source-controlled; deployed into current/ before build)
+# Role B — custom provider JARs (source-controlled; staged, then copied into providers/ before build)
 ~/keycloak-custom-providers/   # operator-owned, in the invoking user's home
     *.jar                      # flat; themes ship as provider JARs too (best practice)
 
-# Config
-/etc/keycloak/
-    keycloak.conf         # environment-neutral platform config (build-time options)
-    keycloak.env          # environment-specific values (runtime options)
-    bootstrap.env         # temporary admin credentials; removed after init
-
-# Role C — runtime state
-/var/lib/keycloak/
-/var/log/keycloak/
-/var/backups/keycloak/
+# Boot-injected, environment-specific config — tmpfs only, never on disk / in the image
+/run/keycloak/                 # tmpfs, root:keycloak 0750 (ADR-0008)
+    keycloak.env               #   non-secret runtime values (incl. JGroups bind addr)
+    secrets.env                #   DB credentials, bootstrap admin
 ```
 
 ### Rules
 
 - **Java** is a dnf-managed OpenJDK 21 under `/usr/lib/jvm`, selected via
   `alternatives`. KIB does not vendor a JDK under `/usr/java`.
-- **Role A** (`/opt/keycloak/`) holds Keycloak installations and the `current`
-  symlink. The `current` symlink is the single mutable pointer, and it is swapped
-  **only on the golden instance** during version preparation. The install
-  binaries are `root:root` and immutable; the one exception is each install's own
-  `data/` dir (`/opt/keycloak/<ver>/data`) — Keycloak hardcodes its runtime data
-  there (gzip cache, transaction logs) and must write it, so `install` creates it
-  **keycloak-owned** and labelled `var_lib_t` (ADR-0011), and the service writes
-  it in place (no relocation; the systemd unit runs without `ProtectSystem`, see
-  ADR-0005).
+- **Role A** (`/opt/keycloak/`) is `KEYCLOAK_HOME` — a single install, extracted
+  straight here with **no versioned subdir and no `current` symlink** (this is an
+  image-building node; it never keeps two versions). The install binaries are
+  `root:root` and immutable (`usr_t`); the one exception is `data/` — Keycloak
+  hardcodes its runtime data there (gzip cache, transaction logs) and must write
+  it, so `install` creates it **keycloak-owned** (`0750`) and labelled `var_lib_t`
+  (ADR-0011), and the service writes it in place (no relocation; the systemd unit
+  runs without `ProtectSystem`, see ADR-0005). The neutral `conf/keycloak.conf`
+  is baked in and read natively by `kc.sh` — no `KC_CONFIG_FILE` needed.
 - **Role B** (`~/keycloak-custom-providers/`) holds operator-authored provider
   JARs (themes ship as JARs too). It lives in the invoking user's home — the
   same place the release tarball is downloaded and extracted — so it is
   operator-owned and populated by hand; `bootstrap.sh` creates it. It is never
-  itself an installation. Its `*.jar` contents are copied into
-  `/opt/keycloak/current/providers` before `kc.sh build`. Override the location
-  with `install`/`verify --providers-dir`.
-- **Role C** (`/var/lib`, `/var/log`, `/var/backups`) holds mutable runtime
-  state and is excluded from the AMI's environment-neutral guarantee (sanitized
-  by `kcimage seal`).
-- **Config** lives in `/etc/keycloak`. `keycloak.conf` carries build-time /
-  platform-neutral options (baked into the AMI); `keycloak.env` carries
-  runtime / environment-specific values (injected at boot). `bootstrap.env` is
-  transient.
+  itself an installation, and it must be a **separate** tree from the install
+  because `/opt/keycloak` does not exist until `install` creates it. Its `*.jar`
+  contents are copied into `/opt/keycloak/providers` before `kc.sh build`.
+  Override the location with `install`/`upgrade`/`verify --providers-dir`.
+- **Boot-injected config** (`/run/keycloak/`) is tmpfs, written per boot by
+  `keycloak-config.service` (ADR-0005/0008). **Both** `keycloak.env` (non-secret)
+  and `secrets.env` land here, so nothing environment-specific ever touches the
+  disk or the image. There are no `/var/lib`, `/var/log`, or `/var/backups`
+  Keycloak trees and no `/etc/keycloak`: the neutral config is baked inside
+  `KEYCLOAK_HOME`, runtime data lives in `KEYCLOAK_HOME/data`, and everything
+  environment-specific is ephemeral on tmpfs.
 
 ## Consequences
 
 ### Positive
 
-- Eliminates the `/opt/keycloak` name collision: Role A and Role B can never be
-  confused by a human, an upgrade step, a cleanup script, or `restorecon`.
+- Eliminates the `/opt/keycloak` name collision: the install and the operator's
+  custom-provider staging dir are separate trees and can never be confused by a
+  human, an upgrade step, a cleanup script, or `restorecon`.
+- One tree to reason about. Everything server-side is under `KEYCLOAK_HOME`;
+  there is no config in `/etc`, no state scattered across `/var`, and no
+  versioned installs or `current` pointer to keep straight. `clean` removes one
+  directory; `restorecon` relabels one tree.
 - Canonical paths align with RHEL-family / RPM conventions (`/usr/lib/jvm`,
-  `/opt`, `/etc`, `/var`), so SELinux fcontext defaults and operator intuition
-  mostly "just work."
-- Custom assets survive upgrades by construction — they live outside every
-  installation and are re-applied at build time.
-- The `current`-symlink pattern gives the golden instance safe side-by-side
-  version prep with a trivial, atomic switch and an obvious rollback.
-- A single mutable pointer (`current`) keeps immutable installations immutable.
+  `/opt`), and Keycloak's own native layout, so operator intuition mostly "just
+  works."
+- Custom assets survive a rebuild by construction — they live outside the
+  install and are re-applied at build time.
+- Nothing environment-specific ever lands on disk: the baked config is neutral,
+  and per-boot env + secrets live only on tmpfs (`/run/keycloak`).
 
 ### Negative / Trade-offs
 
@@ -148,10 +158,10 @@ Three roles, each in its own tree so none can be mistaken for another:
 - Role B holds a flat set of `*.jar` (custom provider JARs; themes ship as JARs
   too, per best practice). The earlier `providers/`, `themes/`, and `scripts/`
   subdirectories were dropped to keep a single, unambiguous deploy path.
-- The `current` symlink is meaningful only on the golden instance; on ASG
-  nodes it is effectively frozen at bake time. Operators must understand that
-  swapping it on a live production node is not the supported upgrade path
-  (see the Upgrade ADR).
+- Collapsing to one install means an `upgrade` has no persistent previous
+  version to fall back to; the safety margin is the transient `/opt/keycloak.bak`
+  during the upgrade and, ultimately, the previous AMI (ADR-0006/0007). This is
+  the right trade on a single-purpose build node.
 
 ### Notes
 

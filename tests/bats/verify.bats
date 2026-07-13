@@ -26,7 +26,7 @@ setup() {
   local etc="$BATS_TEST_TMPDIR/etc"
   mkdir -p "$etc"
   printf 'db=mysql\n' > "$etc/keycloak.conf"
-  run "$KCIMAGE" verify --etc-dir "$etc"
+  run env KIB_CONF_DIR="$etc" "$KCIMAGE" verify
   [[ "$output" == *"[PASS] config"* ]]
 }
 
@@ -34,7 +34,7 @@ setup() {
   local sd="$BATS_TEST_TMPDIR/sd"
   mkdir -p "$sd"
   touch "$sd/keycloak.service" "$sd/keycloak-config.service"
-  run "$KCIMAGE" verify --systemd-dir "$sd"
+  run env KIB_SYSTEMD_DIR="$sd" "$KCIMAGE" verify
   [[ "$output" == *"[PASS] units"* ]]
 }
 
@@ -43,7 +43,7 @@ setup() {
   mkdir -p "$pdir" "$home/providers"
   echo x > "$pdir/foo.jar"
   echo x > "$home/providers/foo.jar"
-  run "$KCIMAGE" verify --providers-dir "$pdir" --home "$home"
+  run env KIB_HOME="$home" "$KCIMAGE" verify --providers-dir "$pdir"
   [[ "$output" == *"[PASS] providers"* ]]
 }
 
@@ -51,7 +51,7 @@ setup() {
   local pdir="$BATS_TEST_TMPDIR/prov" home="$BATS_TEST_TMPDIR/home"
   mkdir -p "$pdir" "$home/providers"
   echo x > "$pdir/foo.jar"   # never copied to the install
-  run "$KCIMAGE" verify --providers-dir "$pdir" --home "$home"
+  run env KIB_HOME="$home" "$KCIMAGE" verify --providers-dir "$pdir"
   [[ "$output" == *"[FAIL] providers"* ]]
   [[ "$output" == *"foo.jar"* ]]
 }

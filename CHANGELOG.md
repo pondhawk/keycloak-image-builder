@@ -5,6 +5,26 @@ All notable changes to KIB are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- **Supply-chain: `install` GPG-verifies the Keycloak distribution** before
+  extracting it into the image (ADR-0004). The downloaded tarball's signature is
+  checked against Keycloak's pinned release-signing key (fingerprint
+  `861AB50E8CC6611FB6BC01A6B8F12EA26FD6EEBA`, "Keycloak Bot", published at
+  <https://www.keycloak.org/keys>); the public key is committed at
+  `templates/keycloak-release-key.asc`, sourced from that page, so verification
+  needs no keyserver. Fail-closed — no valid signature, no install. `gpg` is now
+  a required command on the model.
+
+### Security
+- **`seal` scrubs cloud-init state + operator shell history.** cloud-init caches
+  the raw launch-template user-data — which carries `KC_DB_PASSWORD` — in
+  cleartext under `/var/lib/cloud`, and echoes it into its logs; both would bake
+  into the image. `seal` now runs `cloud-init clean --logs --seed`, removes the
+  cached user-data and cloud-init logs, and clears **both** root's and the
+  sudo-invoking operator's `~/.bash_history`.
+- **The Keycloak distribution is signature-verified** (see Added) — closes the
+  gap where an MITM'd or mutated release asset could be baked into the auth image.
+
 ### Removed
 - Orphaned `templates/fluent-bit.conf`. Centralized logging (Fluent Bit →
   CloudWatch, ADR-0010) is deferred to a follow-up — `fluent-bit` is not in base
@@ -12,6 +32,12 @@ All notable changes to KIB are documented here. Format loosely follows
   JSON→journald logging is unaffected.
 
 ### Fixed
+- **Permission hardening in `install`** (from an adversarial permission audit):
+  guarantee `o+x` on the `/opt/keycloak` top dir — the `keycloak` user reaches
+  `conf/` and `data/` as "other", so a non-traversable top dir would silently
+  break config reads and the gzip cache (keycloak#31949) — and re-assert
+  `keycloak:keycloak` ownership of `data/` after `kc.sh build` (which runs as root
+  and can leave root-owned entries there).
 - **Admin console now loads in a browser** — Keycloak's `KEYCLOAK_HOME/data` is
   writable by the service user, in place. Keycloak writes runtime data under its
   home (the gzip resource cache at `data/tmp/kc-gzip-cache`, transaction logs,
@@ -35,6 +61,24 @@ All notable changes to KIB are documented here. Format loosely follows
   `secrets` comment so this can't regress.
 
 ### Changed
+- **Consolidated the entire server-side layout under `/opt/keycloak`**
+  (ADR-0001). Keycloak installs to its native layout (`bin/ lib/ conf/keycloak.conf
+  data/ providers/ themes/`) as a **single version — no versioned subdir, no
+  `current` symlink** (this is an image-building node, never production; no
+  side-by-side). Dropped `/etc/keycloak` and `/var/lib|log|backups/keycloak`
+  entirely; the only thing outside `/opt/keycloak` is boot-injected env + secrets
+  on tmpfs `/run/keycloak`. `keycloak.conf` is baked in `conf/` and read natively
+  (no `KC_CONFIG_FILE`); `keycloak.env` now lands on tmpfs alongside secrets, so
+  nothing environment-specific ever touches disk (ADR-0002/0008).
+- **`upgrade` is now a safe in-place swap** (ADR-0006). It reads the DB vendor
+  from the existing `keycloak.conf` (so an upgrade can't change the baked vendor),
+  moves the current install aside, installs the new version, and removes the old
+  **only after** the new one builds — rolling back to the previous install on
+  failure. No persistent side-by-side. Changing DB vendor is `clean` + `install`.
+- **Test-only path overrides are env-var hooks, not flags.** `--etc-dir`,
+  `--conf-dir`, `--home`, `--opt-dir`, and `--systemd-dir` are gone from the
+  commands; the Bats suite uses `KIB_CONF_DIR`/`KIB_HOME`/`KIB_SYSTEMD_DIR`/
+  `KIB_RUN` instead. `--providers-dir` remains (a real operator option).
 - **Mutating commands refuse on a running node.** `install`/`upgrade`/`seal`/
   `clean` check `keycloak.service`; if it's active — a live ASG node, never the
   model instance (which builds/seals but never starts Keycloak) — they refuse.

@@ -6,14 +6,12 @@
 
 _verify_usage() {
   cat << EOF
-Usage: kcimage verify [--etc-dir <dir>] [--systemd-dir <dir>] [--home <dir>]
+Usage: kcimage verify [--providers-dir <dir>]
 
 Validate that KIB provisioned this node correctly: Java, install, rendered
-config, SELinux Enforcing, and systemd units.
+config, SELinux Enforcing, and systemd units. Everything server-side is checked
+under /opt/keycloak.
 
-  --etc-dir <dir>      Config dir (default: /etc/keycloak)
-  --systemd-dir <dir>  Unit dir (default: /usr/lib/systemd/system)
-  --home <dir>         Keycloak home (default: /opt/keycloak/current)
   --providers-dir <d>  Custom provider JARs (default: ~/keycloak-custom-providers)
   -h, --help           Show this help
 EOF
@@ -121,21 +119,9 @@ _verify_units() {
 }
 
 cmd_verify() {
-  local etc_dir="$KC_ETC" sd_dir="$KC_SYSTEMD_DIR" home="$KC_CURRENT" providers_dir=""
+  local providers_dir=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --etc-dir)
-        etc_dir="${2:-}"
-        shift 2
-        ;;
-      --systemd-dir)
-        sd_dir="${2:-}"
-        shift 2
-        ;;
-      --home)
-        home="${2:-}"
-        shift 2
-        ;;
       --providers-dir)
         providers_dir="${2:-}"
         shift 2
@@ -154,10 +140,10 @@ cmd_verify() {
 
   validate_reset
   _verify_java
-  _verify_install "$home"
-  _verify_config "$etc_dir"
+  _verify_install "$KC_OPT"
+  _verify_config "$KC_CONF"
   _verify_selinux
-  _verify_units "$sd_dir"
-  _verify_custom_providers "${providers_dir:-$(kib_user_home)/keycloak-custom-providers}" "$home"
+  _verify_units "$KC_SYSTEMD_DIR"
+  _verify_custom_providers "${providers_dir:-$(kib_user_home)/keycloak-custom-providers}" "$KC_OPT"
   validate_summary
 }
