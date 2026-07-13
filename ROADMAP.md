@@ -27,17 +27,13 @@ kcimage seal         # then create the AMI in the AWS Console
 
 ## Status
 
-The toolkit and its docs are **complete**. The only open item is real-instance
-validation.
-
-**Open:**
-
-- **Real-instance test** on a **RHEL-family 9** host (Rocky / Alma / RHEL 9):
-  run `install → verify → seal → image` on the model, then `deploy-aws`
-  end-to-end. This is the last thing before the toolkit is proven.
+The toolkit, its docs, and **real-instance validation** are **complete** — the
+toolkit is proven end-to-end on a real host.
 
 **Done:**
 
+- ~~Real-instance validation~~ — the `install → verify → seal → image → deploy`
+  flow exercised on a real **RHEL-family 10** node (Rocky Linux 10).
 - ~~All six commands~~ — `install`/`upgrade`/`verify`/`seal`/`clean`/`version`
   (see the table above).
 - ~~`install`/`upgrade` split~~ — greenfield `install`; `upgrade` inherits the DB
