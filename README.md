@@ -30,8 +30,11 @@ boot from instance user-data; nobody ever runs `kcimage` on a production node.
 
 - **x86_64 or ARM64/aarch64.** Keycloak's distribution is architecture-independent
   and OpenJDK is `dnf`-resolved per host, so both work with no special handling.
-  KIB builds for the host arch and **cannot cross-build** — build the model on the
-  arch you intend to run. `install --arch x64|arm64` asserts the intended arch.
+  `install` **auto-detects the host arch** — you don't specify it. KIB builds for
+  that arch and **cannot cross-build**, so build the model on the arch you intend
+  to run. The optional `install --arch x64|arm64` doesn't choose the arch; it just
+  asserts the host matches and refuses on mismatch (a guard against building on the
+  wrong instance).
 
 **Access & network**
 
@@ -144,7 +147,7 @@ The runbooks above are the intended path; this is the flat reference.
 
 | Command | What it does |
 |---------|--------------|
-| `install` | Establish a **fresh** Keycloak install (lineage) on a clean model, all under `/opt/keycloak`: Java, distribution, service user, neutral `conf/keycloak.conf`, custom providers, `kc.sh build`, systemd units + boot script, SELinux contexts. Greenfield-only (refuses over an existing install — `clean` first). Requires `--keycloak-version` and `--db-vendor`. Runs on **x86_64 or ARM64/aarch64** — Keycloak is arch-independent and Java is dnf-resolved per host, so the image's arch is simply the arch of the model you build on. Optional `--arch x64\|arm64` asserts the host matches and refuses on mismatch (KIB can't cross-build). |
+| `install` | Establish a **fresh** Keycloak install (lineage) on a clean model, all under `/opt/keycloak`: Java, distribution, service user, neutral `conf/keycloak.conf`, custom providers, `kc.sh build`, systemd units + boot script, SELinux contexts. Greenfield-only (refuses over an existing install — `clean` first). Requires `--keycloak-version` and `--db-vendor`. Runs on **x86_64 or ARM64/aarch64** — Keycloak is arch-independent and Java is dnf-resolved per host, so the image's arch is simply the arch of the model you build on — **auto-detected**, no need to specify. The optional `--arch x64\|arm64` only asserts the host matches and refuses on mismatch (KIB can't cross-build). |
 | `upgrade` | Move an **existing** install to a new Keycloak version via a **safe in-place swap** (old moved to `/opt/keycloak.bak`, new built, backup deleted last on success; rolls back on failure). Inherits the DB vendor from the existing install, so an upgrade can't change the baked vendor. Requires `--keycloak-version`. |
 | `verify` | Offline pre-seal validation: Java, install, build, config, SELinux Enforcing, systemd units, and that every custom provider landed. Exits non-zero on any failure. |
 | `seal` | Sanitize the instance for imaging (remove secrets, env config, runtime state, machine identity) and run the neutrality gate. `--check` runs the gate only. |
