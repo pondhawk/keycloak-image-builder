@@ -30,13 +30,15 @@ the Keycloak version. To change the Keycloak version, use
 
 ## Workflow
 
-### 1. Confirm the starting state
+### 1. Confirm the toolkit and starting state
 
-Record the Keycloak version — the deployed image must be tagged with it, and the
+First confirm you're running the `kcimage` you expect — a forgotten
+`bootstrap.sh` after a release leaves the previous toolkit on your `PATH`. Then
+record the Keycloak version: the deployed image must be tagged with it, and the
 rolling refresh keys off it matching.
 
 ```bash
-kcimage version
+kcimage version            # check the toolkit version AND record the Keycloak baseline
 sudo kcimage verify        # should be all green before you patch
 ```
 

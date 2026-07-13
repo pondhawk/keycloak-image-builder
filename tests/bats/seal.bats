@@ -36,6 +36,24 @@ CONF
   [[ "$output" == *"gate passed"* ]]
 }
 
+@test "gate ignores Keycloak's stock conf files (cache-ispn.xml, README.md)" {
+  # /opt/keycloak/conf is Keycloak's native dir and ships stock files with '://'
+  # namespaces and doc links; the gate must scan only our rendered keycloak.conf,
+  # not the whole directory (regression: the old whole-dir scan false-positived).
+  printf 'db=mysql\n' > "$CONF/keycloak.conf"
+  printf '<infinispan xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>\n' > "$CONF/cache-ispn.xml"
+  printf '# See https://www.keycloak.org/server/configuration for details\n' > "$CONF/README.md"
+  run env KIB_CONF_DIR="$CONF" KIB_RUN="$RUN" "$KCIMAGE" seal --check
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"gate passed"* ]]
+}
+
+@test "gate fails closed when keycloak.conf is absent" {
+  run env KIB_CONF_DIR="$CONF" KIB_RUN="$RUN" "$KCIMAGE" seal --check
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"keycloak.conf not found"* ]]
+}
+
 @test "gate fails when a boot-injected env file survives on tmpfs" {
   printf 'db=mysql\n' > "$CONF/keycloak.conf"
   touch "$RUN/keycloak.env"

@@ -33,13 +33,24 @@ Use this when: you are changing the **Keycloak version** (e.g. `26.1.4` →
 
 ## Workflow
 
-### 1. (Optional) preview
+### 1. Confirm the toolkit version
+
+Check that `kcimage` is the version you expect. If you just installed a new
+release, a forgotten `bootstrap.sh` leaves the previous toolkit on your `PATH` —
+and it would build the old layout. Every command also prints a
+`=== kcimage <version> ===` banner as a backstop.
+
+```bash
+kcimage version
+```
+
+### 2. (Optional) preview
 
 ```bash
 kcimage --dry-run upgrade --keycloak-version 26.2.0
 ```
 
-### 2. Upgrade to the new version (safe in-place swap)
+### 3. Upgrade to the new version (safe in-place swap)
 
 `upgrade` moves the current install aside to `/opt/keycloak.bak`, installs the
 new version into `/opt/keycloak`, and runs `kc.sh build`. Only when that
@@ -51,7 +62,7 @@ vendor, custom providers, and config carry over from the existing install.
 sudo kcimage upgrade --keycloak-version 26.2.0
 ```
 
-### 3. Verify
+### 4. Verify
 
 ```bash
 sudo kcimage verify
@@ -59,7 +70,7 @@ sudo kcimage verify
 
 Confirm it reports the new version and every check passes.
 
-### 4. Seal for imaging
+### 5. Seal for imaging
 
 The previous version was already removed by a successful `upgrade`, so only the
 new install is present. `seal` sanitizes it (empties the runtime `data/`, clears

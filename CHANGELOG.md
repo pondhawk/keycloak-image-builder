@@ -3,7 +3,29 @@
 All notable changes to KIB are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versioning is SemVer.
 
-## [Unreleased]
+## [2.1.1] — 2026-07-13
+
+### Fixed
+- **`seal` neutrality gate no longer false-positives on Keycloak's stock config
+  files.** With config now in Keycloak's native `/opt/keycloak/conf`, that
+  directory ships stock files (`cache-ispn.xml`, `README.md`) containing `://`
+  URIs and doc links; the gate scanned the whole directory and failed on them. It
+  now scans only the one file KIB renders (`keycloak.conf`), and fails closed if
+  that file is missing.
+
+### Added
+- **Version banner.** `install`/`upgrade`/`verify`/`seal`/`clean` print a
+  `=== kcimage <version> ===` line on stderr, so a stale toolkit — e.g. a
+  forgotten `bootstrap.sh` after a release — is obvious at a glance. `version` is
+  excluded (it prints the version itself). Each model-instance runbook now also
+  opens with a `kcimage version` check.
+
+### Changed
+- CI/release GitHub Actions moved off the deprecated Node 20 runtime and pinned
+  to commit SHAs (`actions/checkout` v5.0.1, `softprops/action-gh-release`
+  v3.0.1) so a repointed tag can't inject into CI or the release job.
+
+## [2.1.0] — 2026-07-13
 
 ### Added
 - **Supply-chain: `install` GPG-verifies the Keycloak distribution** before

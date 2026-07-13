@@ -46,16 +46,20 @@ _seal_gate() {
       problems=1
     fi
   done
-  # Scan the baked config *directives* for secrets/endpoints, skipping comment
-  # and blank lines — the neutral keycloak.conf comment header legitimately
-  # mentions "secrets"/"endpoints", and a comment must never trip the gate.
-  if [[ -d "$conf_dir" ]]; then
-    while IFS= read -r -d '' f; do
-      if grep -vE '^[[:space:]]*(#|$)' "$f" 2> /dev/null | grep -qiE 'password|secret|://|amazonaws\.com'; then
-        log_error "gate: possible secret/endpoint in $f"
-        problems=1
-      fi
-    done < <(find "$conf_dir" -type f -print0)
+  # Scan only the ONE file KIB renders — keycloak.conf. The conf dir is now
+  # Keycloak's native /opt/keycloak/conf, which also ships stock files
+  # (cache-ispn.xml, README.md, …) that legitimately contain '://' URIs and doc
+  # links; those arrive via the GPG-verified distribution and are neutral by
+  # construction, so scanning the whole dir false-positives. Scan directives
+  # only, skipping comment/blank lines (the neutral header mentions
+  # "secrets"/"endpoints" and must not trip the gate). Fail-closed if it's absent.
+  local conf="$conf_dir/keycloak.conf"
+  if [[ ! -f "$conf" ]]; then
+    log_error "gate: rendered keycloak.conf not found at $conf"
+    problems=1
+  elif grep -vE '^[[:space:]]*(#|$)' "$conf" 2> /dev/null | grep -qiE 'password|secret|://|amazonaws\.com'; then
+    log_error "gate: possible secret/endpoint in $conf"
+    problems=1
   fi
   if [[ "$problems" -ne 0 ]]; then
     log_error "seal neutrality gate FAILED — do NOT image this instance"

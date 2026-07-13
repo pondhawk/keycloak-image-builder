@@ -31,7 +31,18 @@ it. To reset an instance that already has one, use
 
 ## Workflow
 
-### 1. (Optional) preview the install
+### 1. Confirm the toolkit version
+
+Check that `kcimage` is the version you expect. If you just installed a new
+release, a forgotten `bootstrap.sh` leaves the previous toolkit on your `PATH` —
+and it would build the old layout. Every command also prints a
+`=== kcimage <version> ===` banner as a backstop.
+
+```bash
+kcimage version
+```
+
+### 2. (Optional) preview the install
 
 See exactly what will happen, changing nothing:
 
@@ -39,7 +50,7 @@ See exactly what will happen, changing nothing:
 kcimage --dry-run install --keycloak-version 26.1.4 --db-vendor postgres
 ```
 
-### 2. Install and bake the model
+### 3. Install and bake the model
 
 Installs OpenJDK 21 and the Keycloak distribution into `/opt/keycloak`
 (`KEYCLOAK_HOME`), creates the service user, renders the neutral
@@ -57,7 +68,7 @@ For a MySQL image, swap the vendor (build a separate image):
 sudo kcimage install --keycloak-version 26.1.4 --db-vendor mysql
 ```
 
-### 3. Verify the install
+### 4. Verify the install
 
 Offline gate — Java, the install, `kc.sh build`, config, SELinux Enforcing, the
 systemd units, and that **every** custom provider JAR landed. Fix any `FAIL`
@@ -67,7 +78,7 @@ before continuing.
 sudo kcimage verify
 ```
 
-### 4. Seal for imaging
+### 5. Seal for imaging
 
 Removes secrets, environment-specific config, runtime state, and machine
 identity, then runs the neutrality gate and **fails if anything sensitive
