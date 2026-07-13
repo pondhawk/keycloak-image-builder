@@ -61,6 +61,19 @@ _verify_install() {
   else
     validate_item FAIL build "server not built (run: kcimage build)"
   fi
+  # Keycloak writes its gzip resource cache under $home/data at runtime; if the
+  # service user can't write there, admin-console assets 404 on 'Accept-Encoding:
+  # gzip' and the console won't load (keycloak#31949).
+  if [[ "${EUID:-$(id -u)}" -eq 0 ]] && getent passwd "$KC_USER" > /dev/null 2>&1 &&
+    command -v runuser > /dev/null 2>&1; then
+    if runuser -u "$KC_USER" -- test -w "$home/data" 2> /dev/null; then
+      validate_item PASS data "$home/data writable by $KC_USER"
+    else
+      validate_item FAIL data "$home/data not writable by '$KC_USER' — gzip asset cache will fail (keycloak#31949)"
+    fi
+  else
+    validate_item SKIP data "writability check needs root + $KC_USER"
+  fi
 }
 
 _verify_config() {
