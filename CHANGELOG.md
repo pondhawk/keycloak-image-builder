@@ -12,19 +12,22 @@ All notable changes to KIB are documented here. Format loosely follows
   JSON→journald logging is unaffected.
 
 ### Fixed
-- **Admin console now loads in a browser** — `install` now points Keycloak's
-  `data/` dir at the writable state dir (`/opt/keycloak/<ver>/data ->
-  /var/lib/keycloak/data`). Keycloak caches gzip-encoded admin-console assets
-  under `data/tmp/kc-gzip-cache`, but the install tree is `root:root` and
-  read-only at runtime (`ProtectSystem=strict`), so the cache write failed and
-  every browser (all send `Accept-Encoding: gzip`) got a **404** on the CSS/JS —
-  the console wouldn't load (keycloak/keycloak#31949, closed "not planned").
-  Pointing `data/` at the keycloak-writable `ReadWritePaths` location fixes it.
-  `verify` now checks the service user can write `data/`, so it fails on the
-  model, not at node boot. Diagnosed live from
-  `GzipResourceEncodingProviderFactory: Failed to create gzip cache directory
-  …/data/tmp/kc-gzip-cache`. (An earlier attempt via
-  `quarkus.http.enable-compression` was the wrong layer and has been dropped.)
+- **Admin console now loads in a browser.** Keycloak caches gzip-encoded
+  admin-console assets under `KEYCLOAK_HOME/data/tmp/kc-gzip-cache`, but the
+  install tree is `root:root` and read-only at runtime (`ProtectSystem=strict`),
+  so the cache write failed and every browser (all send `Accept-Encoding: gzip`)
+  got a **404** on the CSS/JS — the console wouldn't load (keycloak/keycloak#31949,
+  closed "not planned"). Two parts, both required:
+  (1) `install` symlinks `/opt/keycloak/<ver>/data -> /var/lib/keycloak/data`
+  (keycloak-writable, in the unit's `ReadWritePaths`); and
+  (2) `keycloak.service` gets `StateDirectory=keycloak/data`, so systemd recreates
+  that target dir keycloak-owned on **every start** — the symlink alone dangled
+  because `seal` purges `/var/lib/keycloak`, and Java's `createDirectories` throws
+  on a dangling symlink. `verify` also checks the service user can write `data/`,
+  so it fails on the model, not at node boot. Diagnosed and validated live on a
+  real node (`GzipResourceEncodingProviderFactory: Failed to create gzip cache
+  directory …/data/tmp/kc-gzip-cache`). (An earlier attempt via
+  `quarkus.http.enable-compression` was the wrong layer and was dropped.)
 - **`seal` neutrality gate no longer false-positives on comments** (found on the
   first real-instance `seal`). The gate scanned all of `/etc/keycloak` including
   comment lines, so the neutral `keycloak.conf` header ("…no endpoints,
