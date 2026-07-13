@@ -23,16 +23,15 @@ StandardOutput=journal
 StandardError=journal
 
 # Hardening (defense-in-depth, subordinate to SELinux — ADR-0005/0011)
+# Keycloak runs unprivileged and owns its own KEYCLOAK_HOME/data, which it must
+# write (gzip cache, transaction logs). We deliberately do NOT use
+# ProtectSystem=strict: it made the install tree read-only and fought Keycloak's
+# normal need to write under its home, which required a fragile symlink dance
+# (keycloak#31949). Security here rests on the unprivileged user, SELinux
+# Enforcing, the immutable/neutral AMI, and the single-purpose node.
 NoNewPrivileges=yes
-ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
-ReadWritePaths=/var/lib/keycloak /var/log/keycloak
-# Keycloak writes its gzip resource cache under data/tmp/kc-gzip-cache; recreate
-# the data dir (the current/data symlink target) keycloak-owned on every start,
-# so it survives `seal` — otherwise admin-console assets 404 on gzip (keycloak#31949).
-StateDirectory=keycloak/data
-StateDirectoryMode=0750
 
 [Install]
 WantedBy=multi-user.target

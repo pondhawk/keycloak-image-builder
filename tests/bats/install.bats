@@ -50,8 +50,10 @@ setup() {
   [[ "$output" == *"prepare it for imaging"* ]]
 }
 
-@test "keycloak.service recreates the data StateDirectory (keycloak#31949 gzip cache)" {
-  grep -qxE 'StateDirectory=keycloak/data' "$REPO_ROOT/systemd/keycloak.service"
+@test "keycloak.service has no read-only sandbox fighting Keycloak's data writes" {
+  # Keycloak owns and writes KEYCLOAK_HOME/data in place; ProtectSystem=strict
+  # (and its symlink/StateDirectory workarounds) must not come back.
+  ! grep -qE '^(ProtectSystem=strict|StateDirectory=)' "$REPO_ROOT/systemd/keycloak.service"
 }
 
 @test "dry-run install plans dist, config render, and build" {
