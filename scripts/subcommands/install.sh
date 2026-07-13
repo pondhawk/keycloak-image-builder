@@ -19,6 +19,8 @@ vendor). install is greenfield-only.
 Options:
   --keycloak-version <ver>   Keycloak version, e.g. 26.1.4 (required)
   --db-vendor <v>            postgres | mysql (required; baked into the image)
+  --arch <x64|arm64>         Assert the build architecture matches this host
+                             (default: auto-detect; KIB cannot cross-build)
   --java-package <pkg>       OpenJDK package (default: java-${KIB_JAVA_MAJOR}-openjdk-headless)
   --providers-dir <dir>      Custom provider JARs (default: ~/keycloak-custom-providers)
   -h, --help                 Show this help
@@ -43,6 +45,32 @@ _install_validate_version() {
   if ((major > KIB_KEYCLOAK_BASELINE)); then
     log_warn "Keycloak major ${major} is newer than the ${KIB_KEYCLOAK_BASELINE}.x baseline (untested); proceeding"
   fi
+}
+
+# Resolve/assert the build architecture. Auto-detects the host; if --arch was
+# given, refuses when it doesn't match — KIB builds on the host JVM and installs
+# host-arch Java, so it cannot cross-build (common.sh). The image's arch is simply
+# the arch of the instance you run this on.
+_install_assert_arch() {
+  local requested="$1" host canon
+  host="$(kib_arch)" || {
+    log_error "unsupported host architecture: $(uname -m) (KIB supports x86_64 and aarch64)"
+    return "$EX_CONFIG"
+  }
+  if [[ -z "$requested" ]]; then
+    log_info "architecture: $(kib_arch_label "$host") (auto-detected)"
+    return 0
+  fi
+  canon="$(kib_arch_normalize "$requested")" || {
+    log_error "invalid --arch: '$requested' (use x64|x86_64 or arm64|aarch64)"
+    return "$EX_USAGE"
+  }
+  if [[ "$canon" != "$host" ]]; then
+    log_error "--arch $requested requested, but this host is $(kib_arch_label "$host") — KIB cannot cross-build."
+    log_error "Build on a $(kib_arch_label "$canon") instance, or omit --arch to build for this host."
+    return "$EX_CONFIG"
+  fi
+  log_info "architecture: $(kib_arch_label "$host") (asserted)"
 }
 
 # Real runs need root (users, /opt). Dry-run is exempt.
@@ -338,7 +366,7 @@ _install_core() {
 }
 
 cmd_install() {
-  local kc_version="" vendor="" conf_dir="$KC_CONF" providers_dir=""
+  local kc_version="" vendor="" conf_dir="$KC_CONF" providers_dir="" arch_req=""
   local java_pkg="java-${KIB_JAVA_MAJOR}-openjdk-headless"
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -348,6 +376,10 @@ cmd_install() {
         ;;
       --db-vendor)
         vendor="${2:-}"
+        shift 2
+        ;;
+      --arch)
+        arch_req="${2:-}"
         shift 2
         ;;
       --java-package)
@@ -386,6 +418,7 @@ cmd_install() {
       ;;
   esac
   _install_validate_version "$kc_version" || return "$EX_USAGE"
+  _install_assert_arch "$arch_req" || return $?
   guard_not_live_node "install" || return $?
   _install_check_privileges || return "$EX_CONFIG"
   _install_guard_greenfield "$conf_dir" || return $?

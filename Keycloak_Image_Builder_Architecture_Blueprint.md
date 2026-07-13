@@ -41,6 +41,11 @@ The toolkit is not simply an installer. It is an operational platform.
 Operating System: - RHEL-family 10 (Rocky Linux 10 is the reference target;
 AlmaLinux 10 / RHEL 10 also supported — requires dnf + SELinux)
 
+Architecture: - x86_64 or ARM64/aarch64 (Keycloak's distribution is
+architecture-independent and OpenJDK is dnf-resolved per host; KIB builds for the
+host arch and cannot cross-build — build the model on the arch you will run.
+`install --arch x64|arm64` asserts it.)
+
 Keycloak: - 26.x or newer (hard floor; install/upgrade refuse older majors — the
 baked config is 26-era. Toolkit is version-parameterized within that range.)
 
