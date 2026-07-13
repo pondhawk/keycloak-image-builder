@@ -28,6 +28,11 @@ ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
 ReadWritePaths=/var/lib/keycloak /var/log/keycloak
+# Keycloak writes its gzip resource cache under data/tmp/kc-gzip-cache; recreate
+# the data dir (the current/data symlink target) keycloak-owned on every start,
+# so it survives `seal` — otherwise admin-console assets 404 on gzip (keycloak#31949).
+StateDirectory=keycloak/data
+StateDirectoryMode=0750
 
 [Install]
 WantedBy=multi-user.target

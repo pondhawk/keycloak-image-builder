@@ -50,6 +50,10 @@ setup() {
   [[ "$output" == *"prepare it for imaging"* ]]
 }
 
+@test "keycloak.service recreates the data StateDirectory (keycloak#31949 gzip cache)" {
+  grep -qxE 'StateDirectory=keycloak/data' "$REPO_ROOT/systemd/keycloak.service"
+}
+
 @test "dry-run install plans dist, config render, and build" {
   run "$KCIMAGE" --dry-run install --keycloak-version 26.1.4 --db-vendor mysql --etc-dir "$BATS_TEST_TMPDIR/etc"
   [ "$status" -eq 0 ]
