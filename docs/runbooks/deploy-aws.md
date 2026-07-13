@@ -65,6 +65,7 @@ Plain `KEY=VALUE` lines using Keycloak's native `KC_*` names, one per line.
 | `KC_HOSTNAME` | ✅ | env | The **ALB** public URL (e.g. `https://auth.example.com`) — issuer, redirects, and Admin Console are built from this, **not** the instance address |
 | `KC_BOOTSTRAP_ADMIN_USERNAME` | optional | **secret** → tmpfs | First-boot temporary admin; remove after initial setup |
 | `KC_BOOTSTRAP_ADMIN_PASSWORD` | optional | **secret** → tmpfs | " |
+| `KC_LOG_LEVEL` | optional | env | Overrides the image's baked `warn` default — e.g. `info` to debug a node, or per-category `warn,org.keycloak:info` |
 | *(any other `KC_*`)* | optional | env | Passed through to `keycloak.env` |
 | `KC_CACHE_EMBEDDED_NETWORK_BIND_ADDRESS` | — | injected | **Do not set** — the boot script fills it from the node's private IP for `jdbc-ping` |
 
