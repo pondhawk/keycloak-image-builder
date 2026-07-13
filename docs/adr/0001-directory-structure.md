@@ -100,9 +100,15 @@ Three roles, each in its own tree so none can be mistaken for another:
 
 - **Java** is a dnf-managed OpenJDK 21 under `/usr/lib/jvm`, selected via
   `alternatives`. KIB does not vendor a JDK under `/usr/java`.
-- **Role A** (`/opt/keycloak/`) holds only Keycloak installations and the
-  `current` symlink. The `current` symlink is the single mutable pointer, and
-  it is swapped **only on the golden instance** during version preparation.
+- **Role A** (`/opt/keycloak/`) holds Keycloak installations and the `current`
+  symlink. The `current` symlink is the single mutable pointer, and it is swapped
+  **only on the golden instance** during version preparation. The install
+  binaries are `root:root` and immutable; the one exception is each install's own
+  `data/` dir (`/opt/keycloak/<ver>/data`) — Keycloak hardcodes its runtime data
+  there (gzip cache, transaction logs) and must write it, so `install` creates it
+  **keycloak-owned** and labelled `var_lib_t` (ADR-0011), and the service writes
+  it in place (no relocation; the systemd unit runs without `ProtectSystem`, see
+  ADR-0005).
 - **Role B** (`~/keycloak-custom-providers/`) holds operator-authored provider
   JARs (themes ship as JARs too). It lives in the invoking user's home — the
   same place the release tarball is downloaded and extracted — so it is

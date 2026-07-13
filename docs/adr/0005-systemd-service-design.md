@@ -105,11 +105,19 @@ safe.
 ### Hardening (defense-in-depth, subordinate to SELinux)
 
 A conservative baseline that does not break the JVM or `kc.sh`:
-`NoNewPrivileges=yes`, `ProtectSystem=strict` with `ReadWritePaths=` for
-`/var/lib/keycloak` and `/var/log/keycloak`, `ProtectHome=yes`,
-`PrivateTmp=yes`. More aggressive directives are adopted only if validated
-against Keycloak under SELinux Enforcing (ADR-0011), since SELinux is the
-primary control.
+`NoNewPrivileges=yes`, `ProtectHome=yes`, `PrivateTmp=yes`.
+
+We deliberately do **not** use `ProtectSystem=strict`. Keycloak hardcodes its
+runtime data to `KEYCLOAK_HOME/data` (the gzip resource cache, transaction logs)
+and must be able to write it; a read-only root filesystem broke that — most
+visibly the admin-console gzip cache, which returned 404 and stopped the console
+from loading (keycloak#31949). Keycloak runs **unprivileged** and **owns its own
+`data/`** dir (created keycloak-owned by `install`, labelled `var_lib_t` per
+ADR-0011), so a read-only-root sandbox bought little over SELinux Enforcing + the
+immutable/neutral single-purpose AMI, and cost real fragility (a symlink/
+`StateDirectory` bridge to `/var/lib` that kept breaking). SELinux is the primary
+control (ADR-0011). More aggressive directives are adopted only if validated
+against Keycloak under Enforcing.
 
 ### Packaging
 
