@@ -59,6 +59,27 @@ kib_user_home() {
   if [[ -n "$h" ]]; then printf '%s' "$h"; else printf '%s' "${HOME:-/root}"; fi
 }
 
+# kib_version — the running toolkit's version, from VERSION at the repo root (dev)
+# or $LIBDIR/../VERSION (installed). Prints "unknown" if not found.
+kib_version() {
+  local candidate
+  for candidate in "$KCIMAGE_BIN_DIR/../VERSION" "$KCIMAGE_LIB_DIR/../VERSION"; do
+    if [[ -f "$candidate" ]]; then
+      printf '%s' "$(< "$candidate")"
+      return 0
+    fi
+  done
+  printf 'unknown'
+}
+
+# kib_banner — one-line version banner on stderr, printed at the top of every
+# command (except `version`). Makes a stale toolkit obvious — the classic footgun
+# is forgetting to re-run bootstrap.sh after a release, so the OLD kcimage keeps
+# running; seeing the version up front catches that immediately.
+kib_banner() {
+  printf '=== kcimage %s ===\n' "$(kib_version)" >&2
+}
+
 # join_sp <items...> — join arguments with single spaces (the dispatcher sets
 # IFS=\n\t, so "${arr[*]}" would otherwise join with newlines in messages).
 join_sp() {

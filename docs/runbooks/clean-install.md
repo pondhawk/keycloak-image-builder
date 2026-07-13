@@ -26,7 +26,18 @@ version or DB vendor.
 
 ## Workflow
 
-### 1. Preview what will be removed
+### 1. Confirm the toolkit version
+
+Check that `kcimage` is the version you expect. If you just installed a new
+release, a forgotten `bootstrap.sh` leaves the previous toolkit on your `PATH` —
+and it would build the old layout. Every command also prints a
+`=== kcimage <version> ===` banner as a backstop.
+
+```bash
+kcimage version
+```
+
+### 2. Preview what will be removed
 
 `clean` is destructive; always look first. A dry run changes nothing and prints
 exactly what a real run would remove (or `already clean` if there's nothing).
@@ -35,7 +46,7 @@ exactly what a real run would remove (or `already clean` if there's nothing).
 kcimage --dry-run clean
 ```
 
-### 2. Clean the instance
+### 3. Clean the instance
 
 `clean` prompts for confirmation before removing anything (there is no `--yes`
 bypass — that's deliberate). Type `y` when asked. (Add `--purge-java` only if you
@@ -45,13 +56,13 @@ also want OpenJDK removed — normally leave it, so the next install is faster.)
 sudo kcimage clean
 ```
 
-### 3. Confirm it's pristine
+### 4. Confirm it's pristine
 
 ```bash
 kcimage --dry-run clean        # should report: already clean
 ```
 
-### 4. Fresh install
+### 5. Fresh install
 
 The instance is now equivalent to a bare model. Do a full
 [Fresh install](fresh-install.md):

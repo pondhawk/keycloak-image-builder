@@ -107,6 +107,8 @@ cmd_dispatch() {
     # shellcheck source=/dev/null
     source "$file"
     if declare -F "$fn" > /dev/null; then
+      # `version` prints the version itself; every other command gets the banner.
+      [[ "$cmd" == "version" ]] || kib_banner
       "$fn" "$@"
       return $?
     fi

@@ -24,3 +24,10 @@ setup() {
   run "$KCIMAGE" no-such-command
   [ "$status" -ne 0 ]
 }
+
+@test "commands print a version banner, but 'version' does not" {
+  run "$KCIMAGE" verify
+  [[ "$output" == *"=== kcimage "* ]]
+  run "$KCIMAGE" version
+  [[ "$output" != *"=== kcimage "* ]]
+}
