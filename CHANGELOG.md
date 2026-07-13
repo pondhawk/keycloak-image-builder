@@ -3,6 +3,17 @@
 All notable changes to KIB are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versioning is SemVer.
 
+## [Unreleased]
+
+### Changed
+- **Baked log level defaults to `warn`.** `keycloak.conf` now sets
+  `log-level=warn` (production-lean) instead of Keycloak's `info` default. It's
+  overridable per-node at boot with `KC_LOG_LEVEL` in launch-template user-data
+  (env wins over `keycloak.conf`; `log-level` is a runtime option, so no
+  rebuild) — e.g. `KC_LOG_LEVEL=info` to debug a node, or
+  `KC_LOG_LEVEL=warn,org.keycloak:info` per-category. Documented in the
+  deploy-aws runbook's user-data table.
+
 ## [2.2.0] — 2026-07-13
 
 ### Added
