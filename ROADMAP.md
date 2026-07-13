@@ -43,10 +43,10 @@ toolkit is proven end-to-end on a real host.
 - ~~Custom providers~~ — `~/keycloak-custom-providers` (operator-owned), deployed
   and re-built on every `install`/`upgrade`.
 - ~~Boot config (ADR-0008)~~ — `boot/configure-node.sh` reads IMDSv2 (private IP)
-  + launch-template user-data (`KEY=VALUE`, `KC_*`), splitting secret→tmpfs and
-  non-secret→`keycloak.env`. **No AWS CLI, no `jq`** (Secrets Manager dropped for
-  user-data). Bats-tested; the live IMDS path is exercised by the real-instance
-  test above.
+  + launch-template user-data (`KEY=VALUE`, `KC_*`), writing both `keycloak.env`
+  and `secrets.env` to tmpfs `/run/keycloak` so nothing environment-specific
+  touches disk. **No AWS CLI, no `jq`** (Secrets Manager dropped for user-data).
+  Bats-tested; the live IMDS path is exercised by real-instance validation.
 - ~~Operational docs~~ — the README is a runbook hub, with self-contained runbooks
   in `docs/runbooks/` (fresh, upgrade, os-patch, clean, deploy-to-AWS).
 
