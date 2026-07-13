@@ -1,7 +1,7 @@
 # keycloak-config.service — boot-time node preparation (ADR-0005).
-# Root oneshot: read user-data + IMDS → write /etc/keycloak/keycloak.env
-# → render /run/keycloak/secrets.env (tmpfs) → validate → conditional bootstrap.
-# SKELETON: ExecStart script implemented in the systemd/Secrets milestone.
+# Root oneshot: read user-data + IMDS → write /run/keycloak/keycloak.env and
+# /run/keycloak/secrets.env (both tmpfs) → validate → conditional bootstrap.
+# Nothing environment-specific ever touches the disk / image (ADR-0008).
 [Unit]
 Description=Keycloak node boot configuration (secrets + env)
 After=network-online.target

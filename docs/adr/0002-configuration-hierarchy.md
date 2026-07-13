@@ -48,9 +48,9 @@ without rebuilding.
 | Layer | Source | Content | When set | In AMI? |
 |-------|--------|---------|----------|---------|
 | 0 | Keycloak built-in defaults | — | — | n/a |
-| 1 | `/etc/keycloak/keycloak.conf` | **Build-time, environment-neutral** platform options | AMI bake | **Yes** |
-| 2 | `/etc/keycloak/keycloak.env` (env vars) | **Runtime, environment-specific** values | First boot | No |
-| 3 | Secrets (launch-template user-data) → env vars | **Sensitive** runtime values | First boot | No |
+| 1 | `/opt/keycloak/conf/keycloak.conf` | **Build-time, environment-neutral** platform options | AMI bake | **Yes** |
+| 2 | `/run/keycloak/keycloak.env` (env vars, tmpfs) | **Runtime, environment-specific** values | First boot | No |
+| 3 | Secrets (launch-template user-data) → `/run/keycloak/secrets.env` | **Sensitive** runtime values | First boot | No |
 | 4 | CLI arguments (via `kcimage`) | Explicit operational overrides | On demand | n/a |
 
 Higher layers override lower. This mirrors Keycloak's native precedence, so a
@@ -62,7 +62,7 @@ boot-injected env var (Layer 2/3) always wins over the baked `keycloak.conf`
 - **A build-time option MUST be environment-neutral** and live in
   `keycloak.conf` (Layer 1), baked into the AMI.
 - **An environment-specific value MUST be a runtime option** and be injected at
-  boot via `keycloak.env` / tmpfs `secrets.env` (Layers 2–3).
+  boot via tmpfs `keycloak.env` / `secrets.env` (Layers 2–3).
 - **A value that is both build-time and environment-specific** cannot be
   neutralized; the only instance is `db` (vendor), resolved by per-vendor AMIs
   (ADR-0004). No other value may occupy this quadrant; the installer validates
@@ -70,41 +70,46 @@ boot-injected env var (Layer 2/3) always wins over the baked `keycloak.conf`
 
 ### Artifact responsibilities
 
-**`/etc/keycloak/keycloak.conf`** — build-time, neutral. Rendered from a repo
-template at bake time. Examples: `db` (vendor only, no endpoint/credentials),
+**`/opt/keycloak/conf/keycloak.conf`** — build-time, neutral. Rendered from a
+repo template at bake time, into `KEYCLOAK_HOME/conf` where Keycloak reads it
+natively. Examples: `db` (vendor only, no endpoint/credentials),
 `cache`, `cache-stack`, `health-enabled`, `metrics-enabled`, `http-enabled`,
 `proxy-headers` (`xforwarded` — TLS terminates at the ALB and nodes serve plain
 HTTP, so there are no certs/keystores on instances), `transaction-xa-enabled`,
 log format. Contains **no** endpoints, hostnames, or secrets. Consumed by
 `kc.sh build`.
 
-**`/etc/keycloak/keycloak.env`** — runtime, environment-specific, non-secret.
-Rendered at first boot from instance metadata / user-data. Delivered to the
-service as an `EnvironmentFile=` for the systemd unit (mechanism finalized in
-ADR-0005). Examples: `KC_DB_URL` (RDS endpoint), `KC_DB_USERNAME`,
-`KC_HOSTNAME`, `KC_HTTP_*`, and JVM sizing via `JAVA_OPTS_APPEND`.
+**`/run/keycloak/keycloak.env`** — runtime, environment-specific, non-secret.
+Written at first boot from instance metadata / user-data onto **tmpfs** (never
+disk), and delivered to the service as an `EnvironmentFile=` for the systemd
+unit (mechanism finalized in ADR-0005). Examples: `KC_DB_URL` (RDS endpoint),
+`KC_DB_USERNAME`, `KC_HOSTNAME`, `KC_HTTP_*`, and JVM sizing via
+`JAVA_OPTS_APPEND`.
 
 **Secrets (launch-template user-data)** — runtime, sensitive. Retrieved at first boot
 and delivered as environment variables (or via Keycloak's keystore config
 source; decided in ADR-0008). Examples: `KC_DB_PASSWORD`, bootstrap admin
 credentials. Never written into the AMI; never committed to the repo.
 
-**`/etc/keycloak/bootstrap.env`** — transient. Holds temporary bootstrap admin
-credentials (`KC_BOOTSTRAP_ADMIN_USERNAME` / `KC_BOOTSTRAP_ADMIN_PASSWORD`),
+**`/run/keycloak/bootstrap.env`** — transient, tmpfs. Holds temporary bootstrap
+admin credentials (`KC_BOOTSTRAP_ADMIN_USERNAME` / `KC_BOOTSTRAP_ADMIN_PASSWORD`),
 sourced from user-data on first boot only, used by the one-shot
 initialization unit, and **removed after successful initialization**. Because
 the RDS database is already populated (ADR scope), initialization is
 idempotent: if the admin already exists, the boot logic skips creation and
 still removes `bootstrap.env`.
 
-### Pointing Keycloak at `/etc/keycloak`
+### Where the neutral config lives
 
-Config lives in `/etc/keycloak`, outside the immutable install tree
-(`/opt/keycloak/current`). Keycloak is directed there via `KC_CONFIG_FILE`
-(or an equivalent `--config-file`) rather than by writing into the install's
-`conf/`. The exact wiring is finalized in ADR-0005 (systemd); the requirement
-here is only that **no configuration is stored inside the versioned install
-directory**, preserving install immutability.
+The neutral `keycloak.conf` is baked into `KEYCLOAK_HOME/conf`
+(`/opt/keycloak/conf/keycloak.conf`), Keycloak's native config location, so
+`kc.sh` reads it automatically — **no `KC_CONFIG_FILE` and no `--config-file`
+are needed** (the systemd unit sets neither; ADR-0005). Because the file is
+neutral (it holds only build-time, environment-neutral options — the neutrality
+gate enforces this), baking it inside the install tree is safe: nothing
+environment-specific is stored on disk. Environment-specific values arrive at
+boot as env vars from tmpfs (Layers 2–3) and override it via Keycloak's native
+precedence.
 
 ### Validation
 
@@ -126,8 +131,9 @@ At bake and at boot, `kcimage` verifies:
   native precedence, so KIB fights the tool less.
 - Secrets never touch the AMI or the repo; they have a single delivery path
   (user-data → env at boot), simplifying the Secrets ADR.
-- Keeping config out of `/opt/keycloak/current` preserves the immutability that
-  the upgrade model (ADR-0006) depends on.
+- The baked `keycloak.conf` is neutral by construction, so keeping it inside
+  `KEYCLOAK_HOME/conf` (read natively) costs no immutability or neutrality —
+  and nothing environment-specific is ever written to disk.
 
 ### Negative / Trade-offs
 

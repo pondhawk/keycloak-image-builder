@@ -10,8 +10,10 @@
 Upgrades are immutable and canonical: a new version is prepared on the golden
 instance, baked into a new AMI (per vendor), and rolled into production by
 replacing instances — never by mutating live nodes (blueprint §10, ADR-0004).
-The side-by-side install + `current` symlink swap exists **only on the golden
-instance** to prepare and validate a version before baking.
+The golden instance holds exactly **one** install (`/opt/keycloak`); there is no
+persistent side-by-side and no `current` symlink (ADR-0001). `kcimage upgrade`
+prepares the new version in place with a **safe swap** (below) so a failed
+upgrade rolls back to the previous install.
 
 The hard part of any Keycloak upgrade is the **shared database**. All nodes
 share one RDS instance; the new version runs Liquibase schema migrations
@@ -43,20 +45,25 @@ ADR-0013, not through this scale-to-0 path.
 
 #### Phase 1 — Version preparation (golden instance, offline)
 
-Steps 1, 2, and 4 are performed by a single `kcimage upgrade
---keycloak-version <new>` — it installs side-by-side, reads the DB vendor from
-the existing model (so the vendor can't drift), re-deploys providers, runs
-`kc.sh build`, and switches the `current` symlink.
+Steps 1 and 2 are performed by a single `kcimage upgrade --keycloak-version
+<new>`, which reads the DB vendor from the existing model's `keycloak.conf` (so
+the vendor can't drift — an upgrade can never change the baked vendor) and does a
+**safe swap**: it moves the current install aside to `/opt/keycloak.bak`,
+installs the new version into `/opt/keycloak`, re-deploys providers, and runs
+`kc.sh build`. Only on success does it delete `/opt/keycloak.bak` — the **last**
+step. If any step fails, it removes the partial new install and restores the
+previous one from `.bak`, so you are never stranded. The two versions coexist
+**only** for the duration of the command; there is no persistent side-by-side and
+no `current` symlink.
 
-1. Install the new Keycloak version side-by-side under
-   `/opt/keycloak/keycloak-<new>`.
-2. Deploy custom provider JARs from `~/keycloak-custom-providers`; run `kc.sh build` for the
-   AMI's `db.vendor`.
+1. `kcimage upgrade --keycloak-version <new>` — swap-install the new version in
+   place, inheriting the DB vendor, re-deploying providers, and running
+   `kc.sh build`; delete the previous install last, on success.
+2. (Changing the DB vendor is **not** an upgrade — it is a fresh lineage:
+   `kcimage clean` then `kcimage install --db-vendor <other>`.)
 3. `kcimage verify` — offline checks (Java, build success, units, SELinux
    contexts).
-4. Switch the `current` symlink to the new version **on the golden instance
-   only**; re-validate.
-5. `seal` → create the new per-vendor AMI(s) in the AWS Console (ADR-0004).
+4. `seal` → create the new per-vendor AMI(s) in the AWS Console (ADR-0004).
 
 #### Phase 2 — Pre-upgrade RDS snapshot (mandatory)
 

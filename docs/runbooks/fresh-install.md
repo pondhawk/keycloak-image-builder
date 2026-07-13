@@ -41,11 +41,11 @@ kcimage --dry-run install --keycloak-version 26.1.4 --db-vendor postgres
 
 ### 2. Install and bake the model
 
-Installs OpenJDK 21, the Keycloak distribution, the service user and
-directories, the neutral `keycloak.conf`, your custom providers, runs
-`kc.sh build`, and lays down the systemd units, boot script, and SELinux
-contexts. By default it **activates** this version — points
-`/opt/keycloak/current` at it — which is what you want here.
+Installs OpenJDK 21 and the Keycloak distribution into `/opt/keycloak`
+(`KEYCLOAK_HOME`), creates the service user, renders the neutral
+`conf/keycloak.conf`, deploys your custom providers, runs `kc.sh build`, and lays
+down the systemd units, boot script, and SELinux contexts. Everything
+server-side lives under `/opt/keycloak` — one version, no versioned subdir.
 
 ```bash
 sudo kcimage install --keycloak-version 26.1.4 --db-vendor postgres

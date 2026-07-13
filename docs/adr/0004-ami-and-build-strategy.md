@@ -38,7 +38,7 @@ The bake sequence, driven by `kcimage` on the golden instance:
 1. `install` — lay down Java, the Keycloak version, scripts, units, policy.
 2. `configure` — render the **neutral** `keycloak.conf` (build-time options,
    including `db=<vendor>`); no environment-specific values.
-3. deploy custom provider JARs from `~/keycloak-custom-providers` into `/opt/keycloak/current`.
+3. deploy custom provider JARs from `~/keycloak-custom-providers` into `/opt/keycloak/providers`.
 4. `build` — run `kc.sh build` for the selected `db.vendor`, producing the
    optimized server.
 5. `verify` — validate the built server (§12 checks that do not require a live
@@ -65,25 +65,23 @@ only the MySQL AMI need be baked — but CI still exercises both (ADR-0003).
 
 ### 3. Neutrality contract (what `seal` guarantees)
 
-**The AMI contains:** OpenJDK 21; Keycloak install(s) under `/opt/keycloak`
-with the `current` symlink; the built/optimized server; `kcimage` + scripts;
-systemd units; SELinux policy; templates; docs; the neutral `keycloak.conf`.
+**The AMI contains:** OpenJDK 21; the single Keycloak install at `/opt/keycloak`
+(`KEYCLOAK_HOME`); the built/optimized server; the neutral
+`conf/keycloak.conf` baked inside it; `kcimage` + scripts; systemd units;
+SELinux policy; templates; docs.
 
 **The AMI never contains, and `seal` removes/resets:**
 
 | Removed / reset | Why |
 |---|---|
-| `/etc/keycloak/keycloak.env` (real values) → template only | environment-specific; injected at boot |
-| `/etc/keycloak/bootstrap.env` | transient secret |
+| `/run/keycloak/keycloak.env`, `secrets.env`, `bootstrap.env` (tmpfs) | environment-specific / secret; injected at boot |
 | any cached secret material | no secrets in image |
-| `/var/lib/keycloak` transient/runtime data, caches | runtime state, not neutral |
-| `/var/log/keycloak` + Keycloak journal entries | logs are instance history |
-| `/var/backups/keycloak` contents | may contain env data |
+| `/opt/keycloak/data` contents (gzip cache, tx logs) — dir kept, emptied | runtime state, not neutral; regenerated on boot |
+| Keycloak journal entries | logs are instance history |
 | realm exports, if any | forbidden by §15 |
 | `/etc/machine-id` (truncated) | force per-instance regeneration → unique node identity for clustering |
 | SSH host keys | regenerated per instance |
 | cloud-init instance state/logs, shell history, `/tmp` | prevent identity/secret bleed |
-| non-`current` Keycloak installs under `/opt/keycloak` | keep only the active version; rollback is via the previous AMI, so old installs are pure bloat (matters when the model is reused for OS patching, ADR-0013) |
 
 `seal` is **idempotent** and ends with a **neutrality gate**: it scans for
 any residual secret or environment-specific value and **fails the bake** if one

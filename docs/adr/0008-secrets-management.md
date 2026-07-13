@@ -50,20 +50,24 @@ KC_BOOTSTRAP_ADMIN_PASSWORD=<pass>
 Each launch template carries its own block, so "which cluster" is implicit — no
 pointer or secret name needed.
 
-### Boot split (unchanged): secrets → tmpfs, the rest → /etc/keycloak
+### Boot split: everything env-specific → tmpfs (nothing on disk)
 
 `keycloak-config.service` (root oneshot, ADR-0005) reads IMDSv2 and routes each
-key by sensitivity:
+key by sensitivity — but **both** destination files are on tmpfs
+(`/run/keycloak`), so nothing environment-specific ever touches persistent disk
+or an AMI:
 
-| Source / key | Destination |
-|--------------|-------------|
-| IMDS `local-ipv4` → `KC_CACHE_EMBEDDED_NETWORK_BIND_ADDRESS` | `/etc/keycloak/keycloak.env` |
-| user-data `KC_DB_URL`, `KC_HOSTNAME`, `JAVA_OPTS_APPEND`, other `KC_*` | `/etc/keycloak/keycloak.env` |
-| user-data `KC_DB_USERNAME`, `KC_DB_PASSWORD`, `KC_BOOTSTRAP_ADMIN_*` | `/run/keycloak/secrets.env` (**tmpfs**, 0640 root:keycloak) |
+| Source / key | Destination (both tmpfs, 0640 root:keycloak) |
+|--------------|----------------------------------------------|
+| IMDS `local-ipv4` → `KC_CACHE_EMBEDDED_NETWORK_BIND_ADDRESS` | `/run/keycloak/keycloak.env` |
+| user-data `KC_DB_URL`, `KC_HOSTNAME`, `JAVA_OPTS_APPEND`, other `KC_*` | `/run/keycloak/keycloak.env` |
+| user-data `KC_DB_USERNAME`, `KC_DB_PASSWORD`, `KC_BOOTSTRAP_ADMIN_*` | `/run/keycloak/secrets.env` |
 
-`keycloak.service` consumes both as `EnvironmentFile=` entries. Secrets on tmpfs
-**never hit persistent disk** and cannot be captured into an AMI. `db.vendor` is
-*not* here — it is build-time, baked into the per-vendor AMI (ADR-0003).
+`keycloak.service` consumes both as `EnvironmentFile=` entries. Splitting secret
+from non-secret keeps the blast radius of an accidental log/dump small, but the
+security guarantee is the same for both: on tmpfs they **never hit persistent
+disk** and cannot be captured into an AMI. `db.vendor` is *not* here — it is
+build-time, baked into the per-vendor AMI (ADR-0003).
 
 ### No AWS tooling at boot
 

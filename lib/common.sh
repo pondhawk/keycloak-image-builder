@@ -21,20 +21,32 @@ readonly KIB_KEYCLOAK_BASELINE="26"
 readonly KIB_JAVA_MAJOR="21"
 
 # --- Filesystem layout (ADR-0001) ---
-readonly KC_OPT="/opt/keycloak"
-readonly KC_CURRENT="/opt/keycloak/current"
-readonly KC_ETC="/etc/keycloak"
-readonly KC_RUN="/run/keycloak"
-readonly KC_VAR_LIB="/var/lib/keycloak"
-readonly KC_VAR_LOG="/var/log/keycloak"
-readonly KC_VAR_BACKUPS="/var/backups/keycloak"
+# Everything Keycloak-the-server lives under /opt/keycloak (KEYCLOAK_HOME), the
+# native Keycloak layout: one version, no versioned subdir, no `current` symlink
+# (this is an image-building node, never a production node — no side-by-side).
+# Only ephemeral boot-injected config/secrets live outside, on tmpfs (/run).
+# The KIB_* env vars are test hooks (like the boot script's KIB_ETC/KIB_RUN):
+# they let Bats point a command at a temp dir instead of real system paths. They
+# are NOT operator options and are not exposed as flags.
+readonly KC_OPT="${KIB_HOME:-/opt/keycloak}"     # KEYCLOAK_HOME — Keycloak extracted here
+readonly KC_CONF="${KIB_CONF_DIR:-$KC_OPT/conf}" # native config dir (keycloak.conf)
+readonly KC_DATA="$KC_OPT/data"                  # keycloak-owned runtime data (gzip cache, tx logs)
+readonly KC_RUN="${KIB_RUN:-/run/keycloak}"      # tmpfs — boot-injected env + secrets only
 readonly KC_USER="keycloak"
 readonly KC_GROUP="keycloak"
-readonly KC_SYSTEMD_DIR="/usr/lib/systemd/system"
+readonly KC_SYSTEMD_DIR="${KIB_SYSTEMD_DIR:-/usr/lib/systemd/system}"
 readonly KC_BOOT_DIR="/usr/local/lib/keycloak"
 
 # --- Keycloak distribution source ---
 readonly KEYCLOAK_DOWNLOAD_BASE="https://github.com/keycloak/keycloak/releases/download"
+# Keycloak GPG-signs every release asset with this key ("Keycloak Bot"). The
+# fingerprint is the trust anchor for verifying the downloaded distribution
+# before it is baked into the image (install.sh, ADR-0004). It is published
+# officially at https://www.keycloak.org/keys (key "keycloak-2.asc"); the matching
+# public key is committed at templates/keycloak-release-key.asc (sourced from that
+# page) so verification needs no keyserver. NOTE: this key expires 2027-02-12 —
+# refresh the committed key + fingerprint from keycloak.org/keys when it rotates.
+readonly KEYCLOAK_SIGNING_KEY_FPR="861AB50E8CC6611FB6BC01A6B8F12EA26FD6EEBA"
 
 # is_dry_run — true when --dry-run is active.
 is_dry_run() { [[ "${DRY_RUN:-0}" == "1" ]]; }

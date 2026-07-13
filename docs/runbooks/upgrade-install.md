@@ -1,6 +1,6 @@
 # Runbook — Upgrade Keycloak
 
-Move the model to a **new Keycloak version**, side-by-side with the old one, and
+Move the model to a **new Keycloak version** with a safe in-place swap, and
 leave it **ready for image creation**. This produces a new image at the new
 version.
 
@@ -39,13 +39,13 @@ Use this when: you are changing the **Keycloak version** (e.g. `26.1.4` →
 kcimage --dry-run upgrade --keycloak-version 26.2.0
 ```
 
-### 2. Upgrade to the new version (side-by-side, activated)
+### 2. Upgrade to the new version (safe in-place swap)
 
-The new version installs under `/opt/keycloak/keycloak-<new>` next to the old
-one, and `upgrade` **activates it** — switching the `/opt/keycloak/current`
-symlink to it **on this model instance only**. The DB vendor, custom providers,
-and config carry over from the existing install; `kc.sh build` runs for the new
-version.
+`upgrade` moves the current install aside to `/opt/keycloak.bak`, installs the
+new version into `/opt/keycloak`, and runs `kc.sh build`. Only when that
+succeeds does it delete the backup — the **last** step. If anything fails, it
+restores the previous install from the backup, so you're never stranded. The DB
+vendor, custom providers, and config carry over from the existing install.
 
 ```bash
 sudo kcimage upgrade --keycloak-version 26.2.0
@@ -61,8 +61,9 @@ Confirm it reports the new version and every check passes.
 
 ### 4. Seal for imaging
 
-`seal` also prunes the old, non-`current` Keycloak versions so they don't
-accumulate into the image — only the activated version is kept.
+The previous version was already removed by a successful `upgrade`, so only the
+new install is present. `seal` sanitizes it (empties the runtime `data/`, clears
+any tmpfs env/secrets, resets machine identity) and runs the neutrality gate.
 
 ```bash
 sudo kcimage seal

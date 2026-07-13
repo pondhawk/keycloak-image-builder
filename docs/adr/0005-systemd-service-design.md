@@ -35,11 +35,11 @@ not by systemd unit state.
 
 | Unit | Type | Runs as | Purpose |
 |------|------|---------|---------|
-| `keycloak-config.service` | `oneshot`, `RemainAfterExit=yes` | root | Boot-time prep: read user-data + IMDS, write `/etc/keycloak/keycloak.env`, validate required runtime config, and handle the conditional bootstrap-admin case. |
+| `keycloak-config.service` | `oneshot`, `RemainAfterExit=yes` | root | Boot-time prep: read user-data + IMDS, write `/run/keycloak/keycloak.env` and `secrets.env` (tmpfs), validate required runtime config, and handle the conditional bootstrap-admin case. |
 | `keycloak.service` | `exec` | `keycloak` | The long-running server: `kc.sh start --optimized`. |
 
-Two units (not one) because secret retrieval and writing `/etc/keycloak` need
-root, while the server itself must run unprivileged. A oneshot keeps that
+Two units (not one) because secret retrieval and writing the tmpfs env/secrets
+files need root, while the server itself must run unprivileged. A oneshot keeps that
 privileged work isolated and its failures individually visible
 (`systemctl status keycloak-config`), rather than buried in `ExecStartPre` of
 the main unit. Folding the bootstrap case into the config oneshot avoids a
@@ -64,19 +64,22 @@ keycloak.service             # kc.sh start --optimized
 
 ### Service user and file access
 
-- Dedicated system user/group `keycloak` (no login shell).
-- `/opt/keycloak/current` — read/execute only (installs are immutable).
-- `/etc/keycloak` — read (written by the root oneshot, read by the server).
-- `/var/lib/keycloak`, `/var/log/keycloak` — read/write (runtime state).
+- Dedicated system user/group `keycloak` (no login shell); its home **is**
+  `KEYCLOAK_HOME` (`/opt/keycloak`).
+- `/opt/keycloak` — read/execute (the install is immutable, `usr_t`).
+- `/opt/keycloak/data` — read/write, keycloak-owned (runtime data, `var_lib_t`).
+- `/run/keycloak` — read (tmpfs env/secrets, written by the root oneshot).
 
 ### Config wiring (from ADR-0002)
 
-- `KC_CONFIG_FILE=/etc/keycloak/keycloak.conf` is set in the unit `Environment`,
-  pointing Keycloak at `/etc/keycloak` so **no config lives inside the immutable
-  install tree**.
-- `keycloak.service` uses `EnvironmentFile=/etc/keycloak/keycloak.env` (and,
-  only when present, `bootstrap.env`). JVM sizing comes through
-  `JAVA_OPTS_APPEND` in `keycloak.env`, not by editing units.
+- The neutral `keycloak.conf` is baked into `KEYCLOAK_HOME/conf`
+  (`/opt/keycloak/conf/keycloak.conf`) and read **natively** by `kc.sh` — the
+  unit sets **no** `KC_CONFIG_FILE`. The file is neutral, so baking it inside the
+  install tree stores nothing environment-specific on disk.
+- `keycloak.service` uses `EnvironmentFile=-/run/keycloak/keycloak.env`,
+  `-/run/keycloak/secrets.env`, and (only when present) `-/run/keycloak/bootstrap.env`
+  — all tmpfs. JVM sizing comes through `JAVA_OPTS_APPEND` in `keycloak.env`,
+  not by editing units.
 
 ### Bootstrap-admin handling
 

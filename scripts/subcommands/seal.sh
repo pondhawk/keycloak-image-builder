@@ -3,58 +3,29 @@
 # Removes secrets, environment-specific config, runtime state, and machine
 # identity, then runs a neutrality gate that FAILS if anything sensitive
 # remains. This is KIB's "prepare for image" step.
+#
+# In the consolidated layout everything server-side is under /opt/keycloak, so
+# there are no /var/lib|/var/log|/var/backups trees and no versioned installs to
+# prune. What seal must scrub is: boot-injected secrets/env on tmpfs
+# (/run/keycloak), the keycloak-owned runtime data dir (gzip cache, tx logs —
+# emptied but kept, owner/label intact), and host identity.
 # shellcheck shell=bash
 
 _seal_usage() {
   cat << EOF
-Usage: kcimage seal [--etc-dir <dir>] [--check]
+Usage: kcimage seal [--check]
 
-Sanitize this instance so it can be imaged into an environment-neutral AMI, then
-run the neutrality gate.
+Sanitize this instance so it can be imaged into an environment-neutral image,
+then run the neutrality gate.
 
 Options:
-  --etc-dir <dir>   Config dir (default: /etc/keycloak)
-  --opt-dir <dir>   Keycloak install root (default: /opt/keycloak)
-  --check           Run only the neutrality gate (no changes) — safe to test
-  -h, --help        Show this help
+  --check     Run only the neutrality gate (no changes) — safe to test
+  -h, --help  Show this help
 EOF
 }
 
-# Remove every Keycloak install except the one 'current' points at. Rollback is
-# via the previous AMI, so old on-instance installs are pure AMI bloat.
-_seal_prune_versions() {
-  local opt_dir="$1" keep="" dir base
-  local current="$opt_dir/current"
-  if [[ -L "$current" ]]; then
-    keep="$(readlink "$current")"
-    keep="${keep##*/}"
-  fi
-  if [[ -z "$keep" ]]; then
-    log_warn "no 'current' symlink in $opt_dir; skipping old-version prune"
-    return 0
-  fi
-  shopt -s nullglob
-  local dirs=("$opt_dir"/keycloak-*)
-  shopt -u nullglob
-  for dir in "${dirs[@]}"; do
-    [[ -d "$dir" ]] || continue
-    base="${dir##*/}"
-    [[ "$base" == "$keep" ]] && continue
-    if is_dry_run; then
-      log_info "[dry-run] would remove old install: $dir"
-    else
-      log_info "removing old install: $dir"
-      rm -rf "$dir"
-    fi
-  done
-}
-
-_seal_rm() {
-  local path="$1"
-  [[ -e "$path" ]] || return 0
-  run rm -f "$path"
-}
-
+# Empty a directory's contents but keep the directory itself (and its owner,
+# mode, and SELinux label) — used for the keycloak-owned data/ and tmpfs /run.
 _seal_purge() {
   local dir="$1"
   [[ -d "$dir" ]] || return 0
@@ -67,23 +38,24 @@ _seal_purge() {
 
 # Neutrality gate (ADR-0004): fail if any secret / env-specific value remains.
 _seal_gate() {
-  local etc_dir="$1" problems=0 f
-  for f in "$etc_dir/keycloak.env" "$etc_dir/bootstrap.env" /run/keycloak/secrets.env; do
+  local conf_dir="$1" problems=0 f
+  # Boot-injected secrets/env live on tmpfs; none may survive into the image.
+  for f in "$KC_RUN/keycloak.env" "$KC_RUN/secrets.env" "$KC_RUN/bootstrap.env"; do
     if [[ -e "$f" ]]; then
       log_error "gate: sensitive file still present: $f"
       problems=1
     fi
   done
-  # Scan config *directives* for secrets/endpoints, skipping comment and blank
-  # lines — the neutral keycloak.conf comment header legitimately mentions
-  # "secrets"/"endpoints", and a comment must never trip the gate.
-  if [[ -d "$etc_dir" ]]; then
+  # Scan the baked config *directives* for secrets/endpoints, skipping comment
+  # and blank lines — the neutral keycloak.conf comment header legitimately
+  # mentions "secrets"/"endpoints", and a comment must never trip the gate.
+  if [[ -d "$conf_dir" ]]; then
     while IFS= read -r -d '' f; do
       if grep -vE '^[[:space:]]*(#|$)' "$f" 2> /dev/null | grep -qiE 'password|secret|://|amazonaws\.com'; then
         log_error "gate: possible secret/endpoint in $f"
         problems=1
       fi
-    done < <(find "$etc_dir" -type f -print0)
+    done < <(find "$conf_dir" -type f -print0)
   fi
   if [[ "$problems" -ne 0 ]]; then
     log_error "seal neutrality gate FAILED — do NOT image this instance"
@@ -93,17 +65,9 @@ _seal_gate() {
 }
 
 cmd_seal() {
-  local etc_dir="$KC_ETC" opt_dir="$KC_OPT" check_only=0
+  local conf_dir="$KC_CONF" check_only=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --etc-dir)
-        etc_dir="${2:-}"
-        shift 2
-        ;;
-      --opt-dir)
-        opt_dir="${2:-}"
-        shift 2
-        ;;
       --check)
         check_only=1
         shift
@@ -121,7 +85,7 @@ cmd_seal() {
   done
 
   if [[ "$check_only" == "1" ]]; then
-    _seal_gate "$etc_dir"
+    _seal_gate "$conf_dir"
     return $?
   fi
 
@@ -133,31 +97,41 @@ cmd_seal() {
   confirm "This will SANITIZE this instance for imaging (remove secrets, env config, runtime state, SSH host keys, machine-id)." || return $?
 
   log_info "sanitizing instance for imaging"
-  # Environment-specific config + secrets
-  _seal_rm "$etc_dir/keycloak.env"
-  _seal_rm "$etc_dir/bootstrap.env"
-  _seal_purge /run/keycloak
-  # Runtime state
-  _seal_purge "$KC_VAR_LOG"
-  _seal_purge "$KC_VAR_BACKUPS"
-  _seal_purge "$KC_VAR_LIB"
-  # Old Keycloak versions (keep only 'current')
-  _seal_prune_versions "$opt_dir"
-  # Machine identity (regenerated per instance)
+  # Boot-injected env + secrets (tmpfs)
+  _seal_purge "$KC_RUN"
+  # Runtime data (gzip cache, tx logs) — empty it, keep the keycloak-owned dir
+  _seal_purge "$KC_DATA"
+  # Machine identity + host-specific residue (regenerated per instance)
   if is_dry_run; then
-    log_info "[dry-run] would truncate /etc/machine-id and remove SSH host keys"
+    log_info "[dry-run] would truncate /etc/machine-id, remove SSH host keys, scrub cloud-init state + shell history"
   else
     : > /etc/machine-id 2> /dev/null || log_warn "could not truncate /etc/machine-id"
     rm -f /etc/ssh/ssh_host_* 2> /dev/null || true
     if command -v journalctl > /dev/null 2>&1; then
       journalctl --rotate --vacuum-time=1s > /dev/null 2>&1 || true
     fi
+    # cloud-init caches the raw launch-template user-data — which carries the DB
+    # password — in cleartext under /var/lib/cloud and echoes it into its logs.
+    # Both would bake into the image, so scrub them (the same leak class as a
+    # secret in keycloak.conf). Explicit rm covers the no-cloud-init case.
+    if command -v cloud-init > /dev/null 2>&1; then
+      cloud-init clean --logs --seed > /dev/null 2>&1 || log_warn "cloud-init clean failed"
+    fi
+    rm -rf /var/lib/cloud/instance /var/lib/cloud/instances 2> /dev/null || true
+    rm -f /var/log/cloud-init.log /var/log/cloud-init-output.log 2> /dev/null || true
+    # Shell history — root's, and the operator who invoked us under sudo, who may
+    # have handled live credentials interactively.
     rm -f /root/.bash_history 2> /dev/null || true
+    local op_home
+    op_home="$(getent passwd "${SUDO_USER:-}" 2> /dev/null | cut -d: -f6)"
+    if [[ -n "$op_home" && "$op_home" != "/root" ]]; then
+      rm -f "$op_home/.bash_history" 2> /dev/null || true
+    fi
   fi
 
   if is_dry_run; then
     log_info "[dry-run] would run the neutrality gate"
     return 0
   fi
-  _seal_gate "$etc_dir"
+  _seal_gate "$conf_dir"
 }

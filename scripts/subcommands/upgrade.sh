@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# subcommand: upgrade — move an EXISTING install to a new Keycloak version and
-# prepare it to be re-imaged (ADR-0006 Phase 1: golden-instance version prep).
+# subcommand: upgrade — replace an EXISTING install with a new Keycloak version.
 # The DB vendor is read from the model's keycloak.conf, never a flag, so an
-# upgrade cannot change the image's baked vendor. Reuses the install pipeline.
+# upgrade cannot change the image's baked vendor (its reason to exist).
+# Safe swap: the current install is moved aside and kept until the new version
+# installs and builds; only then is the previous version deleted. A failed
+# upgrade rolls back to the previous install — you're never stranded. There is no
+# persistent side-by-side and no `current` symlink; the old copy exists only for
+# the duration of the upgrade. Reuses the install pipeline.
 # shellcheck shell=bash
 
-# Reuse the shared install pipeline + helpers (_install_core, _read_installed_vendor,
-# _install_validate_version, _install_check_privileges, ...).
 # shellcheck source=./install.sh
 source "$KCIMAGE_CMD_DIR/install.sh"
 
@@ -16,20 +18,21 @@ Usage: kcimage upgrade --keycloak-version <ver> [options]
 
 Upgrade the Keycloak version on a model that already has an install. The DB
 vendor is inherited from the existing install, so an upgrade never changes the
-image's baked vendor. The new version installs side-by-side and is activated.
-Use 'kcimage install' for a first (greenfield) install instead.
+image's baked vendor. The current install is kept until the new version builds,
+then removed; a failed upgrade rolls back. Use 'kcimage install' for a first
+(greenfield) install instead.
 
 Options:
   --keycloak-version <ver>   New Keycloak version, e.g. 26.2.0 (required)
   --java-package <pkg>       OpenJDK package (default: java-${KIB_JAVA_MAJOR}-openjdk-headless)
-  --etc-dir <dir>            Config dir (default: /etc/keycloak)
   --providers-dir <dir>      Custom provider JARs (default: ~/keycloak-custom-providers)
   -h, --help                 Show this help
 EOF
 }
 
 cmd_upgrade() {
-  local kc_version="" etc_dir="$KC_ETC" providers_dir=""
+  local kc_version="" providers_dir=""
+  local conf_dir="$KC_CONF"
   local java_pkg="java-${KIB_JAVA_MAJOR}-openjdk-headless"
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -39,10 +42,6 @@ cmd_upgrade() {
         ;;
       --java-package)
         java_pkg="${2:-}"
-        shift 2
-        ;;
-      --etc-dir)
-        etc_dir="${2:-}"
         shift 2
         ;;
       --providers-dir)
@@ -70,14 +69,28 @@ cmd_upgrade() {
   _install_check_privileges || return "$EX_CONFIG"
 
   local vendor
-  vendor="$(_read_installed_vendor "$etc_dir")" || {
-    log_error "no existing install found ($etc_dir/keycloak.conf missing)."
+  vendor="$(_read_installed_vendor "$conf_dir")" || {
+    log_error "no existing install found ($conf_dir/keycloak.conf missing)."
     log_error "Run 'kcimage install --keycloak-version <ver> --db-vendor <postgres|mysql>' first."
     return "$EX_CONFIG"
   }
 
-  confirm "Upgrade to Keycloak $kc_version (db=$vendor) and switch the active version." || return $?
+  confirm "Upgrade to Keycloak $kc_version (db=$vendor). The current install is kept until the new one builds, then removed." || return $?
 
-  log_info "upgrading to Keycloak $kc_version (db=$vendor, read from the existing install)"
-  _install_core "$kc_version" "$vendor" "$java_pkg" "$etc_dir" "$providers_dir"
+  log_info "upgrading to Keycloak $kc_version (db=$vendor)"
+  local bak="${KC_OPT}.bak"
+  run rm -rf "$bak"
+  run mv "$KC_OPT" "$bak" || {
+    log_error "could not move the current install aside; nothing changed"
+    return "$EX_CONFIG"
+  }
+  if _install_core "$kc_version" "$vendor" "$java_pkg" "$conf_dir" "$providers_dir"; then
+    run rm -rf "$bak"
+    log_info "upgrade complete: previous version removed"
+  else
+    log_error "upgrade failed — rolling back to the previous install"
+    run rm -rf "$KC_OPT"
+    run mv "$bak" "$KC_OPT"
+    return "$EX_CONFIG"
+  fi
 }

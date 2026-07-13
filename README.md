@@ -136,7 +136,7 @@ From there, the **AWS** runbook takes over.
 | Runbook | Use it when you want to… | Runs on |
 |---------|--------------------------|---------|
 | [**Fresh install**](docs/runbooks/fresh-install.md) | Build a golden model from a bare instance for the first time | Model instance |
-| [**Upgrade Keycloak**](docs/runbooks/upgrade-install.md) | Move the model to a new Keycloak version (side-by-side, then re-bake) | Model instance |
+| [**Upgrade Keycloak**](docs/runbooks/upgrade-install.md) | Move the model to a new Keycloak version (safe in-place swap, then re-bake) | Model instance |
 | [**OS patch / image refresh**](docs/runbooks/os-patch.md) | Apply OS security patches and re-bake the same Keycloak version | Model instance |
 | [**Clean install**](docs/runbooks/clean-install.md) | Reset the model to a pristine state and start over | Model instance |
 | [**Deploy to AWS**](docs/runbooks/deploy-aws.md) | Create the image, wire the launch template + user-data, and roll it to the ASG | AWS |
@@ -166,8 +166,8 @@ The runbooks above are the intended path; this is the flat reference.
 
 | Command | What it does |
 |---------|--------------|
-| `install` | Establish a **fresh** Keycloak install (lineage) on a clean model: Java, distribution, service user, directories, neutral `keycloak.conf`, custom providers, `kc.sh build`, systemd units + boot script, SELinux contexts. Greenfield-only. Requires `--keycloak-version` and `--db-vendor`. |
-| `upgrade` | Move an **existing** install to a new Keycloak version (side-by-side; activated automatically). Inherits the DB vendor from the existing install, so an upgrade can't change the baked vendor. Requires `--keycloak-version`. |
+| `install` | Establish a **fresh** Keycloak install (lineage) on a clean model, all under `/opt/keycloak`: Java, distribution, service user, neutral `conf/keycloak.conf`, custom providers, `kc.sh build`, systemd units + boot script, SELinux contexts. Greenfield-only (refuses over an existing install — `clean` first). Requires `--keycloak-version` and `--db-vendor`. |
+| `upgrade` | Move an **existing** install to a new Keycloak version via a **safe in-place swap** (old moved to `/opt/keycloak.bak`, new built, backup deleted last on success; rolls back on failure). Inherits the DB vendor from the existing install, so an upgrade can't change the baked vendor. Requires `--keycloak-version`. |
 | `verify` | Offline pre-seal validation: Java, install, build, config, SELinux Enforcing, systemd units, and that every custom provider landed. Exits non-zero on any failure. |
 | `seal` | Sanitize the instance for imaging (remove secrets, env config, runtime state, machine identity) and run the neutrality gate. `--check` runs the gate only. |
 | `clean` | Invert `install`, returning the model to a pristine state. Keeps the toolkit, OpenJDK, and `~/keycloak-custom-providers`. Mostly for testing. |

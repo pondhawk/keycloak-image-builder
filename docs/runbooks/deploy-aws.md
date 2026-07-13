@@ -42,8 +42,8 @@ Pick your path:
 The node is environment-neutral; **everything environment-specific arrives here,
 as launch-template user-data.** At boot, `configure-node.sh` (baked into the AMI)
 reads user-data + the node's private IP from IMDSv2 and splits it into
-`/etc/keycloak/keycloak.env` and a tmpfs secrets file — no AWS CLI, no secrets
-store.
+`/run/keycloak/keycloak.env` and `/run/keycloak/secrets.env` — both on tmpfs, so
+nothing environment-specific ever touches disk — no AWS CLI, no secrets store.
 
 ### User-data format
 

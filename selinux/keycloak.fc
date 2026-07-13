@@ -2,16 +2,14 @@
 # Format: <path-regex>  <SELinux type>
 # Applied by: kcimage selinux apply  (semanage fcontext -a … ; restorecon -R)
 # Types are indicative and validated on Rocky Linux 10 during implementation.
-
-# Keycloak writes its runtime data under KEYCLOAK_HOME/data (gzip cache,
-# transaction logs); label it writable-state so the service can write in place.
-# Listed BEFORE the broad /opt/keycloak rule: that rule's recursive restorecon
-# is what actually relabels this dir (this rule's own regex prefix isn't a real
-# path, so its restorecon is skipped), so it must be registered first.
-/opt/keycloak/[^/]+/data(/.*)?   var_lib_t
-/opt/keycloak(/.*)?              usr_t
-/opt/keycloak/current/bin(/.*)?  bin_t
-/etc/keycloak(/.*)?              etc_t
-/var/lib/keycloak(/.*)?          var_lib_t
-/var/log/keycloak(/.*)?          var_log_t
-/var/backups/keycloak(/.*)?      var_t
+#
+# Everything server-side lives under /opt/keycloak (ADR-0001): the tree is
+# read-only usr_t, except data/ which Keycloak must write (gzip cache,
+# transaction logs) and so is labelled writable-state var_lib_t, and bin/ which
+# is bin_t. restorecon applies the MOST-SPECIFIC matching rule to each path, so
+# data/ and bin/ win over the broad /opt/keycloak rule regardless of line order;
+# selinux_apply also relabels each rule's literal path prefix directly. Order
+# below is for human readability only — it does not affect the resulting labels.
+/opt/keycloak/data(/.*)?   var_lib_t
+/opt/keycloak(/.*)?        usr_t
+/opt/keycloak/bin(/.*)?    bin_t
