@@ -89,7 +89,7 @@ _ensure_dirs() {
   run install -d -o root -g root -m 0755 "$KC_OPT"
   run install -d -o root -g "$KC_GROUP" -m 0750 "$etc_dir"
   run install -d -o "$KC_USER" -g "$KC_GROUP" -m 0750 \
-    "$KC_VAR_LIB" "$KC_VAR_LIB/data" "$KC_VAR_LOG" "$KC_VAR_BACKUPS"
+    "$KC_VAR_LIB" "$KC_VAR_LOG" "$KC_VAR_BACKUPS"
 }
 
 _install_keycloak_dist() {
@@ -124,14 +124,14 @@ _install_keycloak_dist() {
   fi
   run mv "$tmp/keycloak-$ver" "$target" || return "$EX_CONFIG"
   run chown -R root:root "$target"
-  # Keycloak writes runtime data under KEYCLOAK_HOME/data — notably the gzip
-  # resource cache (data/tmp/kc-gzip-cache); without it, admin-console assets
-  # 404 on 'Accept-Encoding: gzip' (keycloak#31949). The install tree is
-  # root:root and read-only at runtime (ProtectSystem=strict), so point data/ at
-  # the keycloak-writable state dir (in the unit's ReadWritePaths).
-  run rm -rf "$target/data"
-  run ln -sfn "$KC_VAR_LIB/data" "$target/data"
-  log_info "installed: $target (data -> $KC_VAR_LIB/data)"
+  # Keycloak writes runtime data under KEYCLOAK_HOME/data (the gzip resource
+  # cache at data/tmp/kc-gzip-cache, transaction logs, ...). Keycloak hardcodes
+  # this path, so it must be writable by the service user. Create it here owned
+  # by keycloak; SELinux labels it var_lib_t (selinux/keycloak.fc) and the unit
+  # runs unprivileged without ProtectSystem, so keycloak writes it in place — no
+  # symlink, no relocation (keycloak#31949).
+  run install -d -o "$KC_USER" -g "$KC_GROUP" -m 0750 "$target/data"
+  log_info "installed: $target (data writable by $KC_USER)"
 }
 
 # _install_share_dir <name> — echo the resolved repo/tarball or installed dir.

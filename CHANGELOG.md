@@ -12,22 +12,20 @@ All notable changes to KIB are documented here. Format loosely follows
   JSON→journald logging is unaffected.
 
 ### Fixed
-- **Admin console now loads in a browser.** Keycloak caches gzip-encoded
-  admin-console assets under `KEYCLOAK_HOME/data/tmp/kc-gzip-cache`, but the
-  install tree is `root:root` and read-only at runtime (`ProtectSystem=strict`),
-  so the cache write failed and every browser (all send `Accept-Encoding: gzip`)
-  got a **404** on the CSS/JS — the console wouldn't load (keycloak/keycloak#31949,
-  closed "not planned"). Two parts, both required:
-  (1) `install` symlinks `/opt/keycloak/<ver>/data -> /var/lib/keycloak/data`
-  (keycloak-writable, in the unit's `ReadWritePaths`); and
-  (2) `keycloak.service` gets `StateDirectory=keycloak/data`, so systemd recreates
-  that target dir keycloak-owned on **every start** — the symlink alone dangled
-  because `seal` purges `/var/lib/keycloak`, and Java's `createDirectories` throws
-  on a dangling symlink. `verify` also checks the service user can write `data/`,
-  so it fails on the model, not at node boot. Diagnosed and validated live on a
-  real node (`GzipResourceEncodingProviderFactory: Failed to create gzip cache
-  directory …/data/tmp/kc-gzip-cache`). (An earlier attempt via
-  `quarkus.http.enable-compression` was the wrong layer and was dropped.)
+- **Admin console now loads in a browser** — Keycloak's `KEYCLOAK_HOME/data` is
+  writable by the service user, in place. Keycloak writes runtime data under its
+  home (the gzip resource cache at `data/tmp/kc-gzip-cache`, transaction logs,
+  …), but the install tree was `root:root` + read-only at runtime
+  (`ProtectSystem=strict`), so those writes failed — most visibly, every browser
+  (all send `Accept-Encoding: gzip`) got a **404** on the admin-console CSS/JS and
+  the console wouldn't load (keycloak/keycloak#31949, closed "not planned").
+  Fixed by letting Keycloak do the normal thing: `install` creates
+  `/opt/keycloak/<ver>/data` owned by `keycloak`, SELinux labels it `var_lib_t`
+  (writable-state), and `keycloak.service` **drops `ProtectSystem=strict`** (it
+  runs unprivileged and owns its data). This removed the read-only-tree hardening
+  that was fighting Keycloak, and with it the symlink, `StateDirectory`, and
+  `/var/lib/keycloak/data` machinery from earlier attempts. `verify` checks the
+  service user can write `data/`, so it fails on the model, not at node boot.
 - **`seal` neutrality gate no longer false-positives on comments** (found on the
   first real-instance `seal`). The gate scanned all of `/etc/keycloak` including
   comment lines, so the neutral `keycloak.conf` header ("…no endpoints,

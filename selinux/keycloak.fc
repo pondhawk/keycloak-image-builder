@@ -3,6 +3,12 @@
 # Applied by: kcimage selinux apply  (semanage fcontext -a … ; restorecon -R)
 # Types are indicative and validated on Rocky Linux 10 during implementation.
 
+# Keycloak writes its runtime data under KEYCLOAK_HOME/data (gzip cache,
+# transaction logs); label it writable-state so the service can write in place.
+# Listed BEFORE the broad /opt/keycloak rule: that rule's recursive restorecon
+# is what actually relabels this dir (this rule's own regex prefix isn't a real
+# path, so its restorecon is skipped), so it must be registered first.
+/opt/keycloak/[^/]+/data(/.*)?   var_lib_t
 /opt/keycloak(/.*)?              usr_t
 /opt/keycloak/current/bin(/.*)?  bin_t
 /etc/keycloak(/.*)?              etc_t
