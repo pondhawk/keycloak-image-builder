@@ -10,7 +10,7 @@ operational runbooks, **not** by `kcimage`.
 
 | Command | Purpose | Status |
 |---------|---------|--------|
-| `install` | Establish a fresh install (greenfield) on a clean model: Java, distribution, dirs, service user, neutral `keycloak.conf`, `kc.sh build`, SELinux contexts | ✅ |
+| `install` | Establish a fresh install (greenfield) on a clean model, all under `/opt/keycloak`: Java, distribution, service user, neutral `conf/keycloak.conf`, `kc.sh build`, systemd units, SELinux contexts | ✅ |
 | `upgrade` | Move an existing install to a new Keycloak version (DB vendor inherited from the existing install) | ✅ |
 | `verify` | Validate the install: Java, install, build, config, SELinux Enforcing, systemd units | ✅ |
 | `seal` | Sanitize for imaging + neutrality gate (`--check` runs the gate only) | ✅ |

@@ -62,7 +62,7 @@ keycloak-image-builder/
 ├── scripts/                 # kcimage and supporting scripts
 ├── systemd/                 # unit + drop-in templates
 ├── selinux/                 # policy modules / fcontext definitions
-├── templates/               # keycloak.conf / keycloak.env / bootstrap.env templates
+├── templates/               # keycloak.conf + pinned Keycloak signing key (.asc)
 ├── tests/                   # Bats suites
 ├── examples/
 ├── Makefile
