@@ -4,9 +4,6 @@
 **golden Keycloak model**, then sanitizes it so you can bake an
 environment-neutral **image** that an autoscaling fleet launches.
 
-> **Status:** v1.0.0 — the toolkit is complete and CI is green. Real-instance
-> validation on RHEL-family 9 is underway. See `ROADMAP.md`.
-
 KIB is a **model-instance build tool**, not a production-node console (nodes are
 cattle). On the model instance it does exactly three things —
 **install/update → verify → prepare-for-image** — and then you bake an image from
