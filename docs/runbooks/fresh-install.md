@@ -22,9 +22,8 @@ it. To reset an instance that already has one, use
   (`postgres` or `mysql`) this image is for. The vendor is baked in — one image per
   vendor.
 - **Architecture:** the image is built for **this instance's CPU arch** (x86_64
-  or ARM64/aarch64) — KIB can't cross-build, so build on the arch you'll run
-  (a Graviton instance for an ARM64 image). Add `--arch x64|arm64` to `install`
-  to assert you're on the intended arch.
+  or ARM64/aarch64) — KIB can't cross-build, so build on the arch you'll run. Add
+  `--arch x64|arm64` to `install` to assert you're on the intended arch.
 - **(Optional) custom providers:** drop provider JARs (themes ship as JARs too)
   into `~/keycloak-custom-providers/` now, before installing:
   ```bash

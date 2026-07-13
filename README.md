@@ -2,7 +2,7 @@
 
 `kcimage` — a Bash CLI that turns a fresh **RHEL-family 9+** instance into a
 **golden Keycloak model**, then sanitizes it so you can bake an
-environment-neutral **image**. That image is what your Auto Scaling Group launches.
+environment-neutral **image** that an autoscaling fleet launches.
 
 > **Status:** v1.0.0 — the toolkit is complete and CI is green. Real-instance
 > validation on RHEL-family 9 is underway. See `ROADMAP.md`.
@@ -11,36 +11,7 @@ KIB is a **model-instance build tool**, not a production-node console (nodes are
 cattle). On the model instance it does exactly three things —
 **install/update → verify → prepare-for-image** — and then you bake an image from
 it. Everything a running node needs is either baked into the image or injected at
-boot from launch-template user-data; nobody ever runs `kcimage` on a production
-node.
-
-```
-  ┌──────────────────────────────────────────────────────────────┐
-  │  MODEL INSTANCE  (RHEL 9+, SELinux Enforcing)                  │
-  │  — you run kcimage here —                                      │
-  │                                                                │
-  │    install ─────▶ verify ─────▶ seal ─────▶ ✅ ready for image │
-  │    Java, Keycloak, (offline    (sanitize +                     │
-  │    config, build,   gates)      neutrality                     │
-  │    systemd, SELinux)            gate)                          │
-  └───────────────────────────────┬──────────────────────────────┘
-                                   │  AWS Console: Create image
-                                   ▼
-                         ┌───────────────────┐
-                         │   Golden image    │   one per DB vendor
-                         └─────────┬─────────┘
-                                   │  Launch Template + user-data (KC_* keys)
-                                   ▼
-        ┌─────────────────────────────────────────────────┐
-        │  Auto Scaling Group — nodes self-configure at boot│
-        │     node — node — node   (jdbc-ping cluster)      │
-        └────────┬────────────────────────────┬────────────┘
-                 │ HTTP (x-forwarded)          │ JDBC
-          ┌──────▼──────┐                ┌──────▼───────┐
-          │  ALB (TLS)  │                │  PostgreSQL  │  or MySQL
-          └─────────────┘                │  (RDS/Aurora/self-managed)
-                                         └──────────────┘
-```
+boot from instance user-data; nobody ever runs `kcimage` on a production node.
 
 ---
 
@@ -60,8 +31,7 @@ node.
 - **x86_64 or ARM64/aarch64.** Keycloak's distribution is architecture-independent
   and OpenJDK is `dnf`-resolved per host, so both work with no special handling.
   KIB builds for the host arch and **cannot cross-build** — build the model on the
-  arch you intend to run (e.g. a Graviton instance for an ARM64 image, handy when
-  x86 capacity is short). `install --arch x64|arm64` asserts the intended arch.
+  arch you intend to run. `install --arch x64|arm64` asserts the intended arch.
 
 **Access & network**
 
@@ -72,14 +42,14 @@ node.
 **Database** — KIB never creates, migrates, or owns your data.
 
 - A **reachable, already-populated** database: **PostgreSQL** or **MySQL**,
-  running on RDS, Aurora, a self-managed host, or a container — KIB doesn't care
-  where.
+  running on a managed service, a self-managed host, or a container — KIB doesn't
+  care where.
 - Supported engine versions track the Keycloak release you install
   ([source of truth](https://www.keycloak.org/server/db)). For Keycloak 26.x:
 
   | Engine | `--db-vendor` | Supported versions |
   |--------|---------------|--------------------|
-  | PostgreSQL | `postgres` | 14.x – 18.x (Amazon Aurora PostgreSQL 15–17) |
+  | PostgreSQL | `postgres` | 14.x – 18.x |
   | MySQL | `mysql` | 8.0, 8.4 (LTS) — 5.7 is **not** supported |
 
 - **The DB vendor is baked in at build time** (it drives `kc.sh build`), so a
@@ -139,7 +109,7 @@ at the latest and no versioned path ever lands in your shell history.
 Each runbook is **self-contained** — read the workflow, copy-paste the commands
 into a terminal on the model instance, top to bottom. Every model-instance
 runbook ends at the same hard stop: **✅ the model is ready for image creation.**
-From there, the **AWS** runbook takes over.
+From there, the **Deploy to AWS** runbook takes over.
 
 | Runbook | Use it when you want to… | Runs on |
 |---------|--------------------------|---------|
@@ -174,7 +144,7 @@ The runbooks above are the intended path; this is the flat reference.
 
 | Command | What it does |
 |---------|--------------|
-| `install` | Establish a **fresh** Keycloak install (lineage) on a clean model, all under `/opt/keycloak`: Java, distribution, service user, neutral `conf/keycloak.conf`, custom providers, `kc.sh build`, systemd units + boot script, SELinux contexts. Greenfield-only (refuses over an existing install — `clean` first). Requires `--keycloak-version` and `--db-vendor`. Runs on **x86_64 or ARM64/aarch64** — Keycloak is arch-independent and Java is dnf-resolved per host, so the image's arch is simply the arch of the model you build on (build on Graviton for an ARM64 image). Optional `--arch x64\|arm64` asserts the host matches and refuses on mismatch (KIB can't cross-build). |
+| `install` | Establish a **fresh** Keycloak install (lineage) on a clean model, all under `/opt/keycloak`: Java, distribution, service user, neutral `conf/keycloak.conf`, custom providers, `kc.sh build`, systemd units + boot script, SELinux contexts. Greenfield-only (refuses over an existing install — `clean` first). Requires `--keycloak-version` and `--db-vendor`. Runs on **x86_64 or ARM64/aarch64** — Keycloak is arch-independent and Java is dnf-resolved per host, so the image's arch is simply the arch of the model you build on. Optional `--arch x64\|arm64` asserts the host matches and refuses on mismatch (KIB can't cross-build). |
 | `upgrade` | Move an **existing** install to a new Keycloak version via a **safe in-place swap** (old moved to `/opt/keycloak.bak`, new built, backup deleted last on success; rolls back on failure). Inherits the DB vendor from the existing install, so an upgrade can't change the baked vendor. Requires `--keycloak-version`. |
 | `verify` | Offline pre-seal validation: Java, install, build, config, SELinux Enforcing, systemd units, and that every custom provider landed. Exits non-zero on any failure. |
 | `seal` | Sanitize the instance for imaging (remove secrets, env config, runtime state, machine identity) and run the neutrality gate. `--check` runs the gate only. |
