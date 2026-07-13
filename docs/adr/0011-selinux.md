@@ -58,6 +58,7 @@ correct and **survive a full relabel**.
 | Path | Intended context (indicative) | Access |
 |------|------------------------------|--------|
 | `/opt/keycloak`, `/opt/keycloak/current` | `usr_t` / `bin_t` for executables | read/execute |
+| `/opt/keycloak/<ver>/data` | `var_lib_t` | **read/write** — Keycloak's runtime data (gzip cache, tx logs); written in place by the service user |
 | `/etc/keycloak` | `etc_t` | read |
 | `/var/lib/keycloak` | `var_lib_t` | read/write |
 | `/var/log/keycloak` | `var_log_t` | read/write |
