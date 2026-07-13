@@ -153,6 +153,18 @@ The runbooks above are the intended path; this is the flat reference.
 
 ---
 
+## Logging
+
+Keycloak logs **JSON to the systemd journal** — view with `journalctl -u keycloak`.
+The baked default level is **`warn`**; override it **per node at boot** via
+`KC_LOG_LEVEL` in instance user-data (no rebuild — `log-level` is a runtime
+option), e.g. `KC_LOG_LEVEL=info` to debug a node, or
+`KC_LOG_LEVEL=warn,org.keycloak:info` per-category. Environment values win over
+the baked `keycloak.conf`, so the image keeps a production-lean default while any
+node can dial its own level.
+
+---
+
 ## Development
 
 ```bash
