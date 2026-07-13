@@ -80,6 +80,40 @@ kib_banner() {
   printf '=== kcimage %s ===\n' "$(kib_version)" >&2
 }
 
+# --- Architecture ---
+# Keycloak's distribution is architecture-independent (pure JVM + shell) and dnf
+# resolves OpenJDK per-arch, so the build's target arch is simply whatever host
+# we run on — KIB cannot cross-build. These helpers normalize/validate it.
+
+# kib_arch — canonical host architecture: x86_64 | aarch64. Non-zero on anything
+# else (KIB supports only these two).
+kib_arch() {
+  case "$(uname -m 2> /dev/null)" in
+    x86_64 | amd64) printf 'x86_64' ;;
+    aarch64 | arm64) printf 'aarch64' ;;
+    *) return 1 ;;
+  esac
+}
+
+# kib_arch_normalize <alias> — map an operator-supplied --arch value to canonical
+# form (x86_64 | aarch64). Non-zero if unrecognized.
+kib_arch_normalize() {
+  case "${1,,}" in
+    x64 | x86_64 | amd64) printf 'x86_64' ;;
+    arm64 | aarch64) printf 'aarch64' ;;
+    *) return 1 ;;
+  esac
+}
+
+# kib_arch_label <canon> — human label, e.g. "aarch64 (ARM64)".
+kib_arch_label() {
+  case "$1" in
+    x86_64) printf 'x86_64 (x64)' ;;
+    aarch64) printf 'aarch64 (ARM64)' ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
 # join_sp <items...> — join arguments with single spaces (the dispatcher sets
 # IFS=\n\t, so "${arr[*]}" would otherwise join with newlines in messages).
 join_sp() {

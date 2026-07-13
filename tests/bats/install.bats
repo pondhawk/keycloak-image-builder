@@ -44,6 +44,26 @@ setup() {
   [[ "$output" == *"invalid --db-vendor"* ]]
 }
 
+@test "install rejects an invalid --arch value" {
+  run "$KCIMAGE" --dry-run install --keycloak-version 26.1.4 --db-vendor mysql --arch sparc
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"invalid --arch"* ]]
+}
+
+@test "install --arch matching the host is accepted; the other arch is refused" {
+  local match other
+  case "$(uname -m)" in
+    x86_64 | amd64) match=x64 other=arm64 ;;
+    aarch64 | arm64) match=arm64 other=x64 ;;
+    *) skip "unsupported test host arch: $(uname -m)" ;;
+  esac
+  run env KIB_CONF_DIR="$BATS_TEST_TMPDIR/etc" "$KCIMAGE" --dry-run install --keycloak-version 26.1.4 --db-vendor mysql --arch "$match"
+  [ "$status" -eq 0 ]
+  run env KIB_CONF_DIR="$BATS_TEST_TMPDIR/etc" "$KCIMAGE" --dry-run install --keycloak-version 26.1.4 --db-vendor mysql --arch "$other"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"cross-build"* ]]
+}
+
 @test "install --help exits 0" {
   run "$KCIMAGE" install --help
   [ "$status" -eq 0 ]

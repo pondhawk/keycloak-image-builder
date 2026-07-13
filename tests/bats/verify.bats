@@ -15,6 +15,7 @@ setup() {
 @test "verify reports all items and a summary" {
   run "$KCIMAGE" verify
   [[ "$output" == *"Java"* ]]
+  [[ "$output" == *"arch"* ]]
   [[ "$output" == *"install"* ]]
   [[ "$output" == *"config"* ]]
   [[ "$output" == *"SELinux"* ]]

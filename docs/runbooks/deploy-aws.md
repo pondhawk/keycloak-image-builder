@@ -28,12 +28,21 @@ Pick your path:
    |-----|---------|-----|
    | `keycloak-version` | `26.1.4` | Distinguishes an upgrade from an OS patch (ADR-0006/0013) |
    | `db-vendor` | `postgres` | The vendor is baked in; don't mix vendors in one ASG |
+   | `arch` | `aarch64` | The AMI inherits the model's CPU arch; the ASG must use matching instance types |
    | `build-date` | `2026-07-12` | Distinguishes a patch-only AMI from its predecessor at the same version |
 
 4. Wait for the AMI state to become **Available**.
 
 > One AMI is **one DB vendor**. If you run both Postgres and MySQL, build and
 > deploy each from its own model/AMI lineage.
+
+> The AMI's **architecture matches the model instance you built on** — confirm it
+> with `kcimage version` (or the `arch` line in `verify`). An **ARM64/aarch64**
+> image requires **Graviton** instance types (e.g. `t4g`, `m7g`, `c7g`) in the
+> launch template and ASG; an **x86_64** image requires x86 types (e.g. `t3`,
+> `t3a`, `m7i`). KIB can't cross-build, so build the model on the arch you intend
+> to run — if x86 capacity is short in a region, build on Graviton and ship an
+> ARM64 image.
 
 ---
 

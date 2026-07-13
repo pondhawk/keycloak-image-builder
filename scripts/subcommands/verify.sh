@@ -47,6 +47,15 @@ _verify_java() {
   fi
 }
 
+_verify_arch() {
+  local host
+  if host="$(kib_arch)"; then
+    validate_item PASS arch "$(kib_arch_label "$host")"
+  else
+    validate_item FAIL arch "unsupported $(uname -m) (KIB supports x86_64, aarch64)"
+  fi
+}
+
 _verify_install() {
   local home="$1"
   if [[ -x "$home/bin/kc.sh" ]]; then
@@ -140,6 +149,7 @@ cmd_verify() {
 
   validate_reset
   _verify_java
+  _verify_arch
   _verify_install "$KC_OPT"
   _verify_config "$KC_CONF"
   _verify_selinux
