@@ -3,15 +3,14 @@
 All notable changes to KIB are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versioning is SemVer.
 
-## [Unreleased]
+## [2.2.0] — 2026-07-13
 
 ### Added
 - **ARM64 / aarch64 support.** KIB runs on both x86_64 and ARM64 hosts —
   Keycloak's distribution is architecture-independent and OpenJDK is dnf-resolved
-  per host, so an image's arch is simply the arch of the model you build on
-  (build on a Graviton instance for an ARM64 image; useful when x86 capacity is
-  short). `install` takes an optional `--arch x64|arm64` that asserts the host
-  matches and refuses on mismatch — KIB can't cross-build. `verify` reports the
+  per host, so an image's arch is simply the arch of the model you build on.
+  `install` takes an optional `--arch x64|arm64` that asserts the host matches and
+  refuses on mismatch — KIB can't cross-build. `verify` reports the
   architecture as a check and `version` prints it; the deploy runbook gains an
   `arch` AMI tag and Graviton instance-type guidance.
 

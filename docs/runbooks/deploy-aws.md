@@ -41,8 +41,7 @@ Pick your path:
 > image requires **Graviton** instance types (e.g. `t4g`, `m7g`, `c7g`) in the
 > launch template and ASG; an **x86_64** image requires x86 types (e.g. `t3`,
 > `t3a`, `m7i`). KIB can't cross-build, so build the model on the arch you intend
-> to run — if x86 capacity is short in a region, build on Graviton and ship an
-> ARM64 image.
+> to run.
 
 ---
 
